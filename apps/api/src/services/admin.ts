@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import type { Job, LedgerEntry, PaymentRecord, UserProfile } from '@logit/shared';
+import { OWNER_ADMIN_EMAIL, type Job, type LedgerEntry, type PaymentRecord, type UserProfile } from '@logit/shared';
 import type { Store } from '../db/index.js';
 import { badRequest, notFound } from '../errors.js';
 import type { GenerationService } from './generation.js';
@@ -100,7 +100,7 @@ export class AdminService {
   }> {
     const user = await this.store.get<UserProfile>(`users/${uid}`);
     if (!user) throw notFound('User not found.');
-    const [jobs, payments, ledger, admin] = await Promise.all([
+    const [jobs, payments, ledger] = await Promise.all([
       this.store.query<Job>('jobs', { where: [['uid', '==', uid]], orderBy: [['createdAt', 'desc']] }),
       this.store.query<PaymentRecord>('payments', {
         where: [['uid', '==', uid]],
@@ -111,9 +111,9 @@ export class AdminService {
         orderBy: [['createdAt', 'desc']],
         limit: 100,
       }),
-      this.store.get<{ admin?: boolean }>(`admins/${uid}`),
     ]);
-    return { user, jobs, payments, ledger, isAdmin: admin?.admin === true };
+    const ownerEmail = user.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+    return { user, jobs, payments, ledger, isAdmin: user.admin === true && ownerEmail };
   }
 
   async adjust(uid: string, amount: number, reason: string, adminUid: string): Promise<UserProfile> {

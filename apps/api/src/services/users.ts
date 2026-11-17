@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import type { OnboardingInput } from '@logit/shared';
+import { OWNER_ADMIN_EMAIL, type OnboardingInput } from '@logit/shared';
 import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import type { AuthUser } from '../auth.js';
@@ -33,9 +33,18 @@ export class UsersService {
     return new Date().toISOString();
   }
 
+  /** Production admin is hardcoded to the owner email; dev/tests may use ADMIN_BOOTSTRAP_EMAIL. */
+  ownerEmail(): string {
+    return this.config.isProd ? OWNER_ADMIN_EMAIL : this.config.adminBootstrapEmail;
+  }
+
+  isOwnerEmail(email: string | undefined): boolean {
+    return (email ?? '').toLowerCase() === this.ownerEmail().toLowerCase();
+  }
+
   async isAdmin(uid: string): Promise<boolean> {
-    const doc = await this.store.get<{ admin?: boolean }>(`admins/${uid}`);
-    return doc?.admin === true;
+    const user = await this.store.get<UserProfile>(`users/${uid}`);
+    return user?.admin === true && this.isOwnerEmail(user.email);
   }
 
   async bootstrap(authUser: AuthUser, referralCode?: string): Promise<BootstrapResult> {
@@ -77,9 +86,10 @@ export class UsersService {
 
     if (user.banned) return { user, isAdmin: false };
 
-    const isBootstrapAdmin = user.email.toLowerCase() === this.config.adminBootstrapEmail.toLowerCase();
-    if (isBootstrapAdmin && !(await this.isAdmin(user.uid))) {
-      await this.store.set(`admins/${user.uid}`, { admin: true, createdAt: this.now(), bootstrapped: true });
+    const isBootstrapAdmin = this.isOwnerEmail(user.email);
+    if (isBootstrapAdmin && user.admin !== true) {
+      await this.store.merge(`users/${user.uid}`, { admin: true });
+      user = { ...user, admin: true };
     }
 
     if (referralCode && !user.referredBy && !user.onboardingDone) {

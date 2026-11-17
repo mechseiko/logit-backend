@@ -209,6 +209,8 @@ export interface UserProfile {
   referralCode: string;
   referredBy?: string;
   banned: boolean;
+  /** Server-managed: only ever true for OWNER_ADMIN_EMAIL. */
+  admin?: boolean;
   createdAt: string;
   lastActiveAt: string;
   totalPaidNaira: number;

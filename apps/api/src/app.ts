@@ -83,7 +83,7 @@ export function createApp(options: AppOptions): Express {
   app.use('/api', createSchoolsRouter(store));
   app.use('/api', createJobsRouter(services, config));
   app.use('/api', createCreditsRouter(services, config));
-  app.use('/api/admin', requireAdmin(store), createAdminRouter(services, store, storage, config));
+  app.use('/api/admin', requireAdmin(store, config), createAdminRouter(services, store, storage, config));
 
   app.use(notFoundHandler);
   app.use(errorHandler(logger));

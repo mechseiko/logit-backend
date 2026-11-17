@@ -3,6 +3,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { ZodError, type ZodSchema } from 'zod';
 import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
+import type { UserProfile } from '@logit/shared';
 import { ApiError, badRequest, forbidden, unauthorized } from '../errors.js';
 import type { Logger } from '../logger.js';
 import { verifyToken } from '../auth.js';
@@ -71,13 +72,21 @@ export function authenticate(store: Store, config: AppConfig): RequestHandler {
   };
 }
 
-export function requireAdmin(store: Store): RequestHandler {
+export function requireAdmin(store: Store, config: AppConfig): RequestHandler {
   return (req, _res, next) => {
     void (async () => {
       try {
-        const user = requireAuthUser(req);
-        const admin = await store.get<{ admin?: boolean }>(`admins/${user.uid}`);
-        if (admin?.admin !== true) throw forbidden('Admins only.');
+        const authUser = requireAuthUser(req);
+        const profile = await store.get<UserProfile>(`users/${authUser.uid}`);
+        const ownerEmail = config.isProd
+          ? 'mechseiko@gmail.com'
+          : config.adminBootstrapEmail.toLowerCase();
+        if (
+          profile?.admin !== true ||
+          (profile.email ?? '').toLowerCase() !== ownerEmail
+        ) {
+          throw forbidden('Admins only.');
+        }
         next();
       } catch (error) {
         next(error);

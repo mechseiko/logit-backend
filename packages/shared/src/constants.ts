@@ -175,3 +175,6 @@ export const SUPPORT_WHATSAPP = '2348080296575';
 export const DPO_EMAIL = 'privacy@uselogit.cv';
 export const LEGAL_ENTITY_NAME = 'Logit';
 export const LEGAL_ENTITY_ADDRESS = 'Lagos, Nigeria';
+
+/** The only account that can ever be an admin. Hardcoded until it moves server-side. */
+export const OWNER_ADMIN_EMAIL = 'mechseiko@gmail.com';
