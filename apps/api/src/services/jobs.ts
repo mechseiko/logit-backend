@@ -22,7 +22,7 @@ import { badRequest, conflict, limitReached, notFound, rateLimited } from '../er
 import { getPricing } from './pricing.js';
 import { getSchool } from './schools.js';
 import { TemplatesService } from './templates.js';
-import { safeFileName, type StorageAdapter } from './storage/index.js';
+import { proxyUploadUrl, safeFileName, type StorageAdapter } from './storage/index.js';
 
 export interface PresignResult {
   jobId: string;
@@ -145,9 +145,14 @@ export class JobsService {
     };
     await this.store.set(`jobs/${id}`, job);
 
+    const maxBytes = input.kind === 'pdf' ? LIMITS.maxPdfBytes : LIMITS.maxImageBytes;
     const uploads = await Promise.all(
       files.map(async (file) => {
-        const signed = await this.storage.signedPutUrl(file.key, file.type, LIMITS.maxPdfBytes);
+        const signed = proxyUploadUrl(this.config.apiPublicUrl, this.config.devAuthSecret, {
+          key: file.key,
+          mime: file.type,
+          maxBytes,
+        });
         return { key: file.key, url: signed.url, method: signed.method, headers: signed.headers };
       }),
     );

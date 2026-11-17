@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import type { SignedUpload } from './types.js';
 
 export interface FileTokenPayload {
   key: string;
@@ -41,4 +42,26 @@ export function verifyFileToken(token: string, secret: string): FileTokenPayload
 export function safeFileName(name: string, fallback = 'download.pdf'): string {
   const cleaned = name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 120);
   return cleaned || fallback;
+}
+
+export function proxyUploadUrl(
+  apiPublicUrl: string,
+  secret: string,
+  payload: { key: string; mime: string; maxBytes: number; ttlSeconds?: number },
+): SignedUpload {
+  const token = signFileToken(
+    {
+      key: payload.key,
+      exp: Date.now() + (payload.ttlSeconds ?? 900) * 1000,
+      mode: 'put',
+      mime: payload.mime,
+      maxBytes: payload.maxBytes,
+    },
+    secret,
+  );
+  return {
+    url: `${apiPublicUrl}/api/files/upload?token=${encodeURIComponent(token)}`,
+    method: 'PUT',
+    headers: { 'content-type': payload.mime },
+  };
 }

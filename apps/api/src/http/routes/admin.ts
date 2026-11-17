@@ -15,7 +15,7 @@ import type { Services } from '../../services/index.js';
 import type { StorageAdapter } from '../../services/storage/index.js';
 import { getPricing, setPricing } from '../../services/pricing.js';
 import { createOrUpdateSchool, listSchools } from '../../services/schools.js';
-import { safeFileName } from '../../services/storage/index.js';
+import { proxyUploadUrl, safeFileName } from '../../services/storage/index.js';
 import type { Store } from '../../db/index.js';
 
 const fromUploadSchema = z.object({
@@ -183,7 +183,11 @@ export function createAdminRouter(
         req.body,
       );
       const key = `template-uploads/${adminUid(req)}/${Date.now().toString(36)}-${safeFileName(body.name, 'template.pdf')}`;
-      const signed = await storage.signedPutUrl(key, 'application/pdf', 10 * 1024 * 1024);
+      const signed = proxyUploadUrl(config.apiPublicUrl, config.devAuthSecret, {
+        key,
+        mime: 'application/pdf',
+        maxBytes: 10 * 1024 * 1024,
+      });
       res.json({ key, url: signed.url, method: signed.method, headers: signed.headers });
     }),
   );
