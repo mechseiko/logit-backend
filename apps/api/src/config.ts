@@ -1,6 +1,13 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
+import {
+  DPO_EMAIL,
+  LEGAL_ENTITY_ADDRESS,
+  LEGAL_ENTITY_NAME,
+  SUPPORT_EMAIL,
+  SUPPORT_WHATSAPP,
+} from '@logit/shared';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
@@ -70,11 +77,11 @@ export const config = {
   paystackSecretKey: process.env.PAYSTACK_SECRET_KEY ?? '',
   paystackPublicKey: process.env.PAYSTACK_PUBLIC_KEY ?? '',
 
-  supportWhatsapp: process.env.SUPPORT_WHATSAPP ?? '2348000000000',
-  supportEmail: process.env.SUPPORT_EMAIL ?? 'support@uselogit.cv',
-  dpoContact: process.env.DPO_CONTACT ?? 'privacy@uselogit.cv',
-  legalEntityName: process.env.LEGAL_ENTITY_NAME ?? 'Logit',
-  legalEntityAddress: process.env.LEGAL_ENTITY_ADDRESS ?? 'Lagos, Nigeria',
+  supportWhatsapp: SUPPORT_WHATSAPP,
+  supportEmail: SUPPORT_EMAIL,
+  dpoContact: DPO_EMAIL,
+  legalEntityName: LEGAL_ENTITY_NAME,
+  legalEntityAddress: LEGAL_ENTITY_ADDRESS,
 
   retentionDays: int(process.env.RETENTION_DAYS, 14),
   entriesRetentionDays: int(process.env.ENTRIES_RETENTION_DAYS, 180),
