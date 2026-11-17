@@ -1,0 +1,9 @@
+{
+  "status": true,
+  "message": "Authorization URL created",
+  "data": {
+    "authorization_url": "https://checkout.paystack.com/fixture123",
+    "access_code": "fixture123",
+    "reference": "LGT_fixture_1"
+  }
+}

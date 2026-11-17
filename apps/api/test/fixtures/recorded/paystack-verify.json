@@ -1,0 +1,11 @@
+{
+  "status": true,
+  "message": "Verification successful",
+  "data": {
+    "status": "success",
+    "amount": 100000,
+    "currency": "NGN",
+    "reference": "LGT_fixture_1",
+    "gateway_response": "Successful"
+  }
+}
