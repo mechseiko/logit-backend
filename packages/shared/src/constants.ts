@@ -169,7 +169,7 @@ export const ERROR_CODES = [
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
 /** Public site details — hardcoded product facts, not configuration. */
-export const SITE_URL = 'https://logit.vercel.app';
+export const SITE_URL = 'https://uselogit.vercel.app';
 export const SUPPORT_EMAIL = 'support@uselogit.cv';
 export const SUPPORT_WHATSAPP = '2348080296575';
 export const DPO_EMAIL = 'privacy@uselogit.cv';
