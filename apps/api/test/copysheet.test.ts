@@ -73,9 +73,11 @@ describe('copy-sheet path, preview limits and regeneration pricing', () => {
       .post('/api/payments/initialize')
       .set(session.auth)
       .send({ packId: 'pack_2000' });
-    await request(ctx.app)
-      .post(`/api/payments/mock/${init.body.reference}/pay`)
+    await ctx.store.merge(`payments/${init.body.reference}`, { mockPaid: true });
+    const paid = await request(ctx.app)
+      .get(`/api/payments/verify/${init.body.reference}`)
       .set(session.auth);
+    expect(paid.body.status).toBe('success');
 
     await request(ctx.app).post(`/api/jobs/${jobId}/generate`).set(session.auth);
     await processQueue(ctx);

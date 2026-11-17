@@ -5,8 +5,8 @@ import type { InitializeInput, PaymentsProvider, VerifyResult } from './types.js
 
 /**
  * Local payment simulator used only by tests and local development
- * (PAYMENTS_PROVIDER=mock is refused in production). `markMockPaid` flips
- * `mockPaid`, then the normal verify + settle path runs unchanged.
+ * (PAYMENTS_PROVIDER=mock is refused in production). Tests flip `mockPaid`
+ * on the payment record directly, then the normal verify + settle path runs.
  */
 export class MockPaymentsProvider implements PaymentsProvider {
   readonly name = 'mock';

@@ -43,16 +43,6 @@ export function createCreditsRouter(services: Services, config: AppConfig): Rout
     }),
   );
 
-  router.post(
-    '/payments/mock/:reference/pay',
-    asyncHandler(async (req, res) => {
-      const profile = requireProfile(req);
-      await services.payments.markMockPaid(profile.uid, req.params.reference!);
-      const result = await services.payments.verifyForUser(profile.uid, req.params.reference!);
-      res.json(result);
-    }),
-  );
-
   router.get(
     '/payments/history',
     asyncHandler(async (req, res) => {

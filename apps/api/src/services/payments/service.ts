@@ -103,13 +103,6 @@ export class PaymentsService {
     }
   }
 
-  async markMockPaid(uid: string, reference: string): Promise<void> {
-    if (this.provider.name !== 'mock') throw badRequest('Mock payments are disabled.');
-    const payment = await this.store.get<PaymentRecord>(`payments/${reference}`);
-    if (!payment || payment.uid !== uid) throw notFound('Payment not found.');
-    await this.store.merge(`payments/${reference}`, { mockPaid: true });
-  }
-
   async settle(reference: string): Promise<SettleResult> {
     const payment = await this.store.get<PaymentRecord>(`payments/${reference}`);
     if (!payment) throw notFound('Payment not found.');

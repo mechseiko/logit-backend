@@ -73,8 +73,9 @@ describe('pricing source of truth', () => {
     expect(init.body.naira).toBe(1200);
     expect(init.body.credits).toBe(150);
 
+    await ctx.store.merge(`payments/${init.body.reference}`, { mockPaid: true });
     const paid = await request(ctx.app)
-      .post(`/api/payments/mock/${init.body.reference}/pay`)
+      .get(`/api/payments/verify/${init.body.reference}`)
       .set(user.auth);
     expect(paid.body.status).toBe('success');
     expect(paid.body.credits).toBe(150);

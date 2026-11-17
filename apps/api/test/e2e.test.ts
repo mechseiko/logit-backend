@@ -96,8 +96,9 @@ describe('end-to-end happy path (all mocks)', () => {
       .send({ packId: 'pack_1000' });
     expect(init.status).toBe(200);
     const reference = init.body.reference as string;
+    await ctx.store.merge(`payments/${reference}`, { mockPaid: true });
     const paid = await request(ctx.app)
-      .post(`/api/payments/mock/${reference}/pay`)
+      .get(`/api/payments/verify/${reference}`)
       .set(session.auth);
     expect(paid.body.status).toBe('success');
     expect(paid.body.credits).toBe(100);
@@ -189,7 +190,8 @@ describe('referrals', () => {
       .set(friendAuth)
       .send({ packId: 'pack_1000' });
     const reference = init.body.reference as string;
-    const paid = await request(ctx.app).post(`/api/payments/mock/${reference}/pay`).set(friendAuth);
+    await ctx.store.merge(`payments/${reference}`, { mockPaid: true });
+    const paid = await request(ctx.app).get(`/api/payments/verify/${reference}`).set(friendAuth);
     expect(paid.body.status).toBe('success');
 
     const stats = await request(ctx.app).get('/api/referrals').set(referrer.auth);
