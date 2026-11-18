@@ -49,7 +49,7 @@ export const config = {
 
   authMode: (process.env.AUTH_MODE ?? (hasFirebase ? 'firebase' : 'dev')) as 'firebase' | 'dev',
   devAuthSecret: process.env.DEV_AUTH_SECRET ?? 'logit-local-dev',
-  adminBootstrapEmail: process.env.ADMIN_BOOTSTRAP_EMAIL ?? 'admin@uselogit.cv',
+  adminBootstrapEmail: process.env.ADMIN_BOOTSTRAP_EMAIL,
   firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
 
   storeDriver: (process.env.STORE_DRIVER ?? (hasFirebase ? 'firestore' : 'memory')) as

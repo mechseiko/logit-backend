@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { OWNER_ADMIN_EMAIL, type OnboardingInput } from '@logit/shared';
+import { type OnboardingInput } from '@logit/shared';
 import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import type { AuthUser } from '../auth.js';
@@ -33,9 +33,11 @@ export class UsersService {
     return new Date().toISOString();
   }
 
-  /** Production admin is hardcoded to the owner email; dev/tests may use ADMIN_BOOTSTRAP_EMAIL. */
   ownerEmail(): string {
-    return this.config.isProd ? OWNER_ADMIN_EMAIL : this.config.adminBootstrapEmail;
+    if (!this.config.adminBootstrapEmail) {
+      throw new Error('ADMIN_BOOTSTRAP_EMAIL must be set for admin operations.');
+    }
+    return this.config.adminBootstrapEmail;
   }
 
   isOwnerEmail(email: string | undefined): boolean {

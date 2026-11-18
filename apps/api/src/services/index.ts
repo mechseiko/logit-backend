@@ -60,7 +60,7 @@ export async function buildServices(deps: ServiceDeps): Promise<Services> {
   const exportService = new ExportService(store, storage, config, (text, maxChars) =>
     generation.shorten(text, maxChars),
   );
-  const admin = new AdminService(store, generation, payments, storage);
+  const admin = new AdminService(store, generation, payments, storage, config);
   const queue = new QueueService(store, ingest, generation, config, logger);
   const cleanup = new CleanupService(store, storage, config, logger);
 

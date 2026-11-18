@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
-import { OWNER_ADMIN_EMAIL, type Job, type LedgerEntry, type PaymentRecord, type UserProfile } from '@logit/shared';
+import { type Job, type LedgerEntry, type PaymentRecord, type UserProfile } from '@logit/shared';
+import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import { badRequest, notFound } from '../errors.js';
 import type { GenerationService } from './generation.js';
@@ -34,6 +35,7 @@ export class AdminService {
     private readonly generation: GenerationService,
     private readonly payments: PaymentsService,
     private readonly storage: StorageAdapter,
+    private readonly config: AppConfig,
   ) {}
 
   private async audit(
@@ -112,7 +114,7 @@ export class AdminService {
         limit: 100,
       }),
     ]);
-    const ownerEmail = user.email.toLowerCase() === OWNER_ADMIN_EMAIL;
+    const ownerEmail = user.email.toLowerCase() === this.config.adminBootstrapEmail?.toLowerCase();
     return { user, jobs, payments, ledger, isAdmin: user.admin === true && ownerEmail };
   }
 

@@ -78,9 +78,8 @@ export function requireAdmin(store: Store, config: AppConfig): RequestHandler {
       try {
         const authUser = requireAuthUser(req);
         const profile = await store.get<UserProfile>(`users/${authUser.uid}`);
-        const ownerEmail = config.isProd
-          ? 'mechseiko@gmail.com'
-          : config.adminBootstrapEmail.toLowerCase();
+        const ownerEmail = config.adminBootstrapEmail?.toLowerCase();
+        if (!ownerEmail) throw forbidden('Admin email not configured.');
         if (
           profile?.admin !== true ||
           (profile.email ?? '').toLowerCase() !== ownerEmail
