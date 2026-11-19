@@ -10,6 +10,7 @@ import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import { imagesToPdf, loadPdf, looksLikePdf, pdfInfo, extractEmbeddedText, compressPdf, differenceHash, renderPages } from './pdf/index.js';
 import type { TemplatesService } from './templates.js';
+import { activityPatch } from './retention.js';
 import type { StorageAdapter } from './storage/index.js';
 
 export interface IngestDeps {
@@ -161,7 +162,7 @@ export class IngestService {
       analysis,
       queue: { ...job.queue, state: 'idle', lockedAt: undefined, attempts: job.queue.attempts },
       updatedAt: now,
-      lastActivityAt: now,
+      ...activityPatch(job, config.retentionDays, new Date(now)),
       error: undefined,
     };
     await store.set(`jobs/${job.id}`, next);

@@ -4,6 +4,7 @@ import type { Logger } from '../logger.js';
 import type { Job, JobError } from '@logit/shared';
 import type { GenerationService } from './generation.js';
 import type { IngestService } from './ingest.js';
+import { CreditsService } from './credits.js';
 
 const RETRYABLE = new Set(['PROCESSING_FAILED', 'AI_UNAVAILABLE', 'INTERNAL']);
 const KNOWN_CODES = new Set([
@@ -110,6 +111,13 @@ export class QueueService {
       if (lockedAt > staleBefore) continue;
       const attempts = (job.queue.attempts ?? 0) + 1;
       if (attempts > 3) {
+        // Give up on this run, but never keep the student's reserved credits hostage.
+        if (job.queue.kind === 'generate' && job.plan) {
+          const credits = new CreditsService(this.store);
+          await credits
+            .release(job.uid, job.id, job.plan.cost, job.generationAttempt ?? 1)
+            .catch((error) => this.logger.error({ err: error, jobId: job.id }, 'credit release failed'));
+        }
         await this.store.set(`jobs/${job.id}`, {
           ...job,
           status: 'failed',

@@ -35,7 +35,9 @@ export function createApp(options: AppOptions): Express {
   const { config, store, storage, logger, services } = options;
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 1);
+  // Behind Render's proxy: req.ip must be the student's address, not the proxy's, otherwise every
+  // user shares one rate-limit bucket. Configurable for a different topology (TRUST_PROXY).
+  app.set('trust proxy', config.trustProxy);
   app.use(requestId);
   app.use(
     helmet({
@@ -63,15 +65,25 @@ export function createApp(options: AppOptions): Express {
     requestLogger(logger),
   );
 
-  // Public + raw-body routes must be registered before the JSON parser.
+  // Public + raw-body routes must be registered before the JSON parser. They get their own,
+  // wider limiter: the webhook, signed file transfers and dev sign-in used to be unthrottled.
+  app.use(
+    rateLimit({
+      windowMs: config.rateLimit.windowMs,
+      limit: config.rateLimit.public,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: { code: 'RATE_LIMITED', message: 'Too many requests. Slow down.' } },
+    }),
+  );
   app.use(createPublicRouter({ config, store, storage, services }));
 
   app.use('/api', express.json({ limit: '100kb' }));
   app.use(
     '/api',
     rateLimit({
-      windowMs: 60_000,
-      limit: config.isProd ? 120 : 600,
+      windowMs: config.rateLimit.windowMs,
+      limit: config.rateLimit.api,
       standardHeaders: true,
       legacyHeaders: false,
       message: { error: { code: 'RATE_LIMITED', message: 'Too many requests. Slow down.' } },

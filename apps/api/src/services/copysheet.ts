@@ -14,6 +14,19 @@ export interface CopySheetContext {
 
 const MARGIN = 42;
 
+/**
+ * Characters that actually fit on one ruled line. 0.5em is a safe average advance for the Noto
+ * Sans subset; wrapping by a larger count would draw text past the right margin.
+ */
+export function fitCharsPerLine(
+  requestedChars: number,
+  lineWidthPt: number,
+  fontSize: number,
+): number {
+  const byWidth = Math.floor(lineWidthPt / (fontSize * 0.5));
+  return Math.max(20, Math.min(requestedChars, byWidth));
+}
+
 function wrapByChars(text: string, maxChars: number): string[] {
   const lines: string[] = [];
   for (const paragraph of text.split('\n')) {
@@ -97,7 +110,7 @@ export async function buildCopySheet(context: CopySheetContext, fontBytes: Buffe
   pdf.registerFontkit(fontkit);
   const font = await pdf.embedFont(fontBytes, { subset: true });
   const linesPerDay = Math.min(20, Math.max(3, context.intake.linesPerDay ?? 5));
-  const charsPerLine = Math.min(120, Math.max(40, context.intake.charsPerLine ?? 70));
+  const requestedCharsPerLine = Math.min(120, Math.max(40, context.intake.charsPerLine ?? 70));
   const pages: PDFPage[] = [];
 
   for (const week of context.weeks) {
@@ -142,11 +155,14 @@ export async function buildCopySheet(context: CopySheetContext, fontBytes: Buffe
         color: rgb(0.35, 0.38, 0.43),
       });
 
+      // Wrap to what the entry column can really hold at each size, never to the raw request.
       let fontSize = 9;
+      let charsPerLine = fitCharsPerLine(requestedCharsPerLine, entryWidth, fontSize);
       let lines = wrapByChars(day.entry, charsPerLine);
       if (lines.length > linesPerDay) {
         fontSize = 7.5;
-        lines = wrapByChars(day.entry, Math.round(charsPerLine * 1.2));
+        charsPerLine = fitCharsPerLine(requestedCharsPerLine, entryWidth, fontSize);
+        lines = wrapByChars(day.entry, charsPerLine);
       }
       const maxLines = Math.min(linesPerDay, lines.length);
       for (let i = 0; i < maxLines; i += 1) {

@@ -30,6 +30,23 @@ async function main(): Promise<void> {
       'system PDF tools missing: thumbnails/compression fall back (fine in dev, unhealthy in production)',
     );
   }
+  // A presigned browser upload needs the site origin in the bucket's CORS rule. We cannot read the
+  // bucket CORS from here, so warn when our own configuration already guarantees a mismatch.
+  if (config.storageDriver === 's3') {
+    const covered = config.allowedOrigins.some(
+      (origin) => origin === config.appUrl || origin === config.appUrl.replace('https://', 'https://www.'),
+    );
+    if (!covered) {
+      logger.warn(
+        { appUrl: config.appUrl, allowedOrigins: config.allowedOrigins },
+        'APP_URL is not in ALLOWED_ORIGINS: cross-origin API calls and uploads from the site will be blocked',
+      );
+    }
+    logger.info(
+      { appUrl: config.appUrl, bucket: config.s3.bucket },
+      'bucket CORS must allow PUT/GET/HEAD from APP_URL (see README → Backblaze B2)',
+    );
+  }
 
   const server = app.listen(config.port, () => {
     logger.info({ port: config.port }, 'logit api listening');

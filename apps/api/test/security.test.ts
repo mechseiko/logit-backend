@@ -12,6 +12,18 @@ afterAll(async () => {
 });
 
 describe('authorization', () => {
+  it('only confirms referral codes that exist', async () => {
+    const miss = await request(ctx.app).get('/api/referrals/validate/NOPE1234');
+    expect(miss.status).toBe(200);
+    expect(miss.body.valid).toBe(false);
+
+    const user = await signIn(ctx, 'invite-owner@test.local', 'Invite Owner');
+    const profile = await ctx.store.get<{ referralCode: string }>(`users/${user.uid}`);
+    const hit = await request(ctx.app).get(`/api/referrals/validate/${profile!.referralCode}`);
+    expect(hit.status).toBe(200);
+    expect(hit.body.valid).toBe(true);
+  });
+
   it('makes the ADMIN_BOOTSTRAP_EMAIL an admin and blocks everyone else', async () => {
     const admin = await signIn(ctx, 'admin@logit.test', 'Admin');
     const adminMe = await request(ctx.app).get('/api/me').set(admin.auth);

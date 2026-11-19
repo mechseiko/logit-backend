@@ -43,6 +43,16 @@ export function createCreditsRouter(services: Services, config: AppConfig): Rout
     }),
   );
 
+  // Local checkout simulator. The provider refuses in production, so this 404s there.
+  router.post(
+    '/payments/mock/:reference/pay',
+    asyncHandler(async (req, res) => {
+      const profile = requireProfile(req);
+      await services.payments.simulatePayment(profile.uid, req.params.reference!);
+      res.json({ ok: true });
+    }),
+  );
+
   router.get(
     '/payments/history',
     asyncHandler(async (req, res) => {

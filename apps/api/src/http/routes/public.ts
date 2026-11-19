@@ -51,7 +51,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       pipeline: tools ?? { checked: false },
       retention: {
         retentionDays: config.retentionDays,
-        entriesRetentionDays: config.entriesRetentionDays,
+        maxRetentionDays: 30,
       },
     });
   });
@@ -90,6 +90,24 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
     asyncHandler(async (_req, res) => {
       const pricing = await getPricing(store);
       res.json({ pricing: pricingForDisplay(pricing) });
+    }),
+  );
+
+  // Public so the invite page can avoid promising credits for a code that does not exist.
+  // Returns only a boolean: no owner, no profile, nothing enumerable beyond "this code exists".
+  router.get(
+    '/api/referrals/validate/:code',
+    asyncHandler(async (req, res) => {
+      const code = String(req.params.code ?? '').trim().toUpperCase();
+      if (!/^[A-Z0-9]{4,16}$/.test(code)) {
+        res.json({ valid: false });
+        return;
+      }
+      const matches = await store.query<{ uid: string }>('users', {
+        where: [['referralCode', '==', code]],
+        limit: 1,
+      });
+      res.json({ valid: matches.length > 0 });
     }),
   );
 
@@ -173,7 +191,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
   router.get(
     '/api/files/sign',
     asyncHandler(async (req, res) => {
-      if (config.authMode !== 'dev') throw notFound();
+      if (config.authMode !== 'dev' || config.isProd) throw notFound();
       const key = typeof req.query.key === 'string' ? req.query.key : '';
       const mode = req.query.mode === 'put' ? 'put' : 'get';
       if (!key) throw notFound();

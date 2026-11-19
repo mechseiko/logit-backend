@@ -138,4 +138,17 @@ export class LocalStorageAdapter implements StorageAdapter {
       headers: { 'content-type': contentType },
     };
   }
+
+  async healthCheck(): Promise<{ ok: boolean; detail: string }> {
+    const key = `health/probe-${Date.now().toString(36)}.txt`;
+    try {
+      await this.put(key, Buffer.from('ok', 'utf8'), 'text/plain');
+      const bytes = await this.get(key);
+      await this.delete(key);
+      return { ok: bytes.toString('utf8') === 'ok', detail: 'local storage write, read and delete succeeded' };
+    } catch (error) {
+      await this.delete(key).catch(() => undefined);
+      return { ok: false, detail: error instanceof Error ? error.message : 'local storage failed' };
+    }
+  }
 }

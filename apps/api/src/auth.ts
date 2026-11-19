@@ -6,6 +6,10 @@ export interface AuthUser {
   email: string;
   name?: string;
   picture?: string;
+  /** True only when the identity provider vouches for the address (Google always does). */
+  emailVerified: boolean;
+  /** Firebase sign-in method: 'google.com', 'password', 'dev', ... */
+  provider: string;
 }
 
 interface FirebaseAppLike {
@@ -39,7 +43,7 @@ function parseDevToken(token: string): AuthUser {
     const email = (payload.email ?? '').trim().toLowerCase();
     if (!email || !email.includes('@')) throw unauthorized('The dev sign-in email is invalid.');
     const uid = payload.uid ?? `dev_${Buffer.from(email).toString('base64url').slice(0, 20)}`;
-    return { uid, email, name: payload.name, picture: payload.picture };
+    return { uid, email, name: payload.name, picture: payload.picture, emailVerified: true, provider: 'dev' };
   } catch {
     throw unauthorized('The dev sign-in token is invalid.');
   }
@@ -55,11 +59,14 @@ export async function verifyToken(token: string, config: AppConfig): Promise<Aut
     const auth = await firebaseAuth(config.firebaseServiceAccountJson);
     const decoded = await auth.verifyIdToken(token);
     if (!decoded.email) throw unauthorized('Use a Google account with an email address.');
+    const firebaseClaims = decoded.firebase as { sign_in_provider?: string } | undefined;
     return {
       uid: decoded.uid,
       email: decoded.email.toLowerCase(),
       name: typeof decoded.name === 'string' ? decoded.name : undefined,
       picture: typeof decoded.picture === 'string' ? decoded.picture : undefined,
+      emailVerified: decoded.email_verified === true,
+      provider: firebaseClaims?.sign_in_provider ?? 'unknown',
     };
   } catch (error) {
     if (error instanceof Error && error.name === 'ApiError') throw error;

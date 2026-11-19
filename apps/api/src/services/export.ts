@@ -5,6 +5,7 @@ import { conflict, notFound } from '../errors.js';
 import { buildCopySheet } from './copysheet.js';
 import { fillTemplate } from './fill.js';
 import { loadFontBytes } from './fonts.js';
+import { activityPatch } from './retention.js';
 import type { StorageAdapter } from './storage/index.js';
 
 export interface ExportResult {
@@ -108,7 +109,7 @@ export class ExportService {
       outputs: [...job.outputs, output],
       status: options.preview ? job.status : 'exported',
       updatedAt: now,
-      lastActivityAt: now,
+      ...activityPatch(job, this.config.retentionDays, new Date(now)),
     };
     await this.store.set(`jobs/${id}`, next);
 

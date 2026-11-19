@@ -73,6 +73,18 @@ describe('retention cleanup', () => {
     expect(await ctx.store.get(`jobs/${job.id}`)).not.toBeNull();
   });
 
+  it('never deletes a logbook that is still being processed or generated', async () => {
+    const job = makeJob('job_in_flight', {
+      status: 'generating',
+      expiresAt: new Date(Date.now() - 1000).toISOString(),
+      queue: { state: 'running', kind: 'generate', attempts: 0 },
+    });
+    await ctx.store.set(`jobs/${job.id}`, job);
+    const result = await ctx.services.cleanup.run(new Date());
+    expect(result.jobsDeleted).toBe(0);
+    expect(await ctx.store.get(`jobs/${job.id}`)).not.toBeNull();
+  });
+
   it('records the storage guard ratio', async () => {
     await ctx.storage.put('misc/filler.bin', Buffer.alloc(80_000), 'application/octet-stream');
     await ctx.services.cleanup.run(new Date());

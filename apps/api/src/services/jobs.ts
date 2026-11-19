@@ -20,6 +20,7 @@ import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import { badRequest, conflict, limitReached, notFound, rateLimited } from '../errors.js';
 import { getPricing } from './pricing.js';
+import { activityPatch, extendedExpiry } from './retention.js';
 import { getSchool } from './schools.js';
 import { TemplatesService } from './templates.js';
 import { proxyUploadUrl, safeFileName, type StorageAdapter } from './storage/index.js';
@@ -141,7 +142,7 @@ export class JobsService {
       createdAt: now,
       updatedAt: now,
       lastActivityAt: now,
-      expiresAt: new Date(Date.now() + this.config.retentionDays * 86400000).toISOString(),
+      expiresAt: extendedExpiry({ createdAt: now }, this.config.retentionDays, new Date(now)),
     };
     await this.store.set(`jobs/${id}`, job);
 
@@ -186,7 +187,7 @@ export class JobsService {
       status: 'queued',
       queue: { state: 'queued', kind: 'ingest', attempts: 0 },
       updatedAt: now,
-      lastActivityAt: now,
+      ...activityPatch(job, this.config.retentionDays, new Date(now)),
     };
     await this.store.set(`jobs/${id}`, next);
     return next;
@@ -207,6 +208,10 @@ export class JobsService {
 
   async remove(uid: string, id: string): Promise<void> {
     const job = await this.loadOwned(uid, id);
+    // Deleting mid-generation would strand the credits reserved for the run.
+    if (job.status === 'generating' || (job.queue.kind === 'generate' && job.queue.state !== 'idle')) {
+      throw conflict('Wait for this logbook to finish generating, then delete it.');
+    }
     await this.store.deleteTree(`jobs/${id}`);
     await Promise.all([
       this.storage.deletePrefix(`raw/${uid}/${id}`),
@@ -229,12 +234,21 @@ export class JobsService {
         queue: { state: 'queued', kind: 'ingest', attempts: 0 },
         error: undefined,
         updatedAt: now,
-        lastActivityAt: now,
+        ...activityPatch(job, this.config.retentionDays, new Date(now)),
       };
       await this.store.set(`jobs/${id}`, next);
       return next;
     }
-    const next: Job = { ...job, status: 'ready_to_generate', error: undefined, updatedAt: now };
+    // A retry is a new generation attempt: fresh reserve/commit/release ledger ids, so the
+    // credits reserved by the failed attempt can be released and charged again cleanly.
+    const next: Job = {
+      ...job,
+      status: 'ready_to_generate',
+      error: undefined,
+      generationAttempt: (job.generationAttempt ?? 1) + 1,
+      updatedAt: now,
+      ...activityPatch(job, this.config.retentionDays, new Date(now)),
+    };
     await this.store.set(`jobs/${id}`, next);
     return next;
   }
@@ -268,7 +282,7 @@ export class JobsService {
       mode: 'template',
       status: 'needs_intake',
       updatedAt: this.now(),
-      lastActivityAt: this.now(),
+      ...activityPatch(job, this.config.retentionDays),
     };
     await this.store.set(`jobs/${id}`, next);
     return next;
@@ -316,7 +330,7 @@ export class JobsService {
       mode: 'copysheet',
       status: 'needs_intake',
       updatedAt: this.now(),
-      lastActivityAt: this.now(),
+      ...activityPatch(job, this.config.retentionDays),
     };
     await this.store.set(`jobs/${id}`, next);
     return next;
@@ -373,7 +387,7 @@ export class JobsService {
       plan,
       status: 'ready_to_generate',
       updatedAt: now,
-      lastActivityAt: now,
+      ...activityPatch(job, this.config.retentionDays, new Date(now)),
     };
     await this.store.set(`jobs/${id}`, next);
     return { job: next, plan };
@@ -411,7 +425,10 @@ export class JobsService {
       updatedAt: this.now(),
     };
     await this.store.set(`jobs/${id}/weeks/${weekNumber}`, next);
-    await this.store.merge(`jobs/${id}`, { updatedAt: this.now(), lastActivityAt: this.now() });
+    await this.store.merge(`jobs/${id}`, {
+      updatedAt: this.now(),
+      ...activityPatch(job, this.config.retentionDays),
+    });
     return next;
   }
 

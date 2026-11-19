@@ -49,6 +49,7 @@ export class CreditsService {
       if (reserved < 0) throw new Error('Reserved credits would go negative.');
       tx.set(`users/${input.uid}`, { ...user, balance, reserved });
       const entry: LedgerEntry = {
+        id: input.id,
         uid: input.uid,
         type: input.type,
         amount: input.amount,

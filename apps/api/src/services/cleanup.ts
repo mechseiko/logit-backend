@@ -48,7 +48,12 @@ export class CleanupService {
     };
     const jobs = await this.store.query<Job>('jobs', {});
     for (const job of jobs) {
-      if (job.expiresAt <= nowIso || job.status === 'expired') {
+      const inFlight =
+        job.status === 'processing' ||
+        job.status === 'generating' ||
+        job.queue.state === 'running' ||
+        job.queue.state === 'queued';
+      if ((job.expiresAt <= nowIso || job.status === 'expired') && !inFlight) {
         await this.store.deleteTree(`jobs/${job.id}`);
         const removed = await Promise.all([
           this.storage.deletePrefix(`raw/${job.uid}/${job.id}`),
@@ -72,7 +77,8 @@ export class CleanupService {
           }
         }
       }
-      if (!job.normalized && job.status === 'failed') {
+      // Raw uploads that never became a job (draft abandoned before submit) and failed ingests.
+      if (!job.normalized && !inFlight) {
         const rawAgeDays = (now.getTime() - new Date(job.createdAt).getTime()) / 86400000;
         if (rawAgeDays > 1) {
           result.objectsDeleted += await this.storage.deletePrefix(`raw/${job.uid}/${job.id}`);

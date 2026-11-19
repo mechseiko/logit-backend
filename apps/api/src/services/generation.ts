@@ -17,6 +17,7 @@ import { generateValidatedWeek } from './ai/index.js';
 import { CreditsService, regenLedgerId, chatLedgerId } from './credits.js';
 import { placeRect } from './fill.js';
 import { getPricing } from './pricing.js';
+import { activityPatch } from './retention.js';
 import type { TemplatesService } from './templates.js';
 
 function rateDocId(uid: string): string {
@@ -166,7 +167,13 @@ export class GenerationService {
     let removed: string[] = [];
     if (!week) {
       const budget = await this.characterBudget(job);
-      week = await this.generateWeekRecord(job, group, budget);
+      try {
+        week = await this.generateWeekRecord(job, group, budget);
+      } catch (error) {
+        // The free preview is the student's; a failed attempt must not consume it.
+        await this.incrementRate(uid, 'previews', -1).catch(() => undefined);
+        throw error;
+      }
       week = { ...week, weeklySummary: week.weeklySummary };
       await this.store.set(`jobs/${id}/weeks/1`, week);
     }
@@ -174,7 +181,7 @@ export class GenerationService {
       ...job,
       usage: { ...job.usage, previewsUsed: job.usage.previewsUsed + 1, aiCalls: job.usage.aiCalls + 1 },
       updatedAt: new Date().toISOString(),
-      lastActivityAt: new Date().toISOString(),
+      ...activityPatch(job, this.config.retentionDays),
     };
     await this.store.set(`jobs/${id}`, next);
     removed = redact(job.intake.tasks.map((task) => task.text).join(' '), {
@@ -205,7 +212,7 @@ export class GenerationService {
       queue: { state: 'queued', kind: 'generate', attempts: 0 },
       error: undefined,
       updatedAt: now,
-      lastActivityAt: now,
+      ...activityPatch(job, this.config.retentionDays, new Date(now)),
     };
     await this.store.set(`jobs/${id}`, next);
     return { job: next, cost, balance: balance - cost };
@@ -264,7 +271,7 @@ export class GenerationService {
           status: 'generated',
           queue: { ...fresh.queue, state: 'idle', lockedAt: undefined },
           updatedAt: new Date().toISOString(),
-          lastActivityAt: new Date().toISOString(),
+          ...activityPatch(fresh, this.config.retentionDays),
         });
       }
     } catch (error) {
@@ -276,7 +283,11 @@ export class GenerationService {
           status: 'failed',
           error: {
             code: error instanceof ApiError ? (error.code as 'AI_UNAVAILABLE') : 'AI_UNAVAILABLE',
-            message: error instanceof Error ? error.message : 'Writing failed.',
+            // Never show an internal message (ledger/transaction text) to a student.
+            message:
+              error instanceof ApiError
+                ? error.message
+                : 'The writing service failed. Your credits were returned — try again.',
             retryable: true,
           },
           queue: { ...fresh.queue, state: 'failed', lockedAt: undefined },
@@ -336,7 +347,7 @@ export class GenerationService {
     await this.store.set(`jobs/${id}/weeks/${weekNumber}`, next);
     await this.store.merge(`jobs/${id}`, {
       updatedAt: new Date().toISOString(),
-      lastActivityAt: new Date().toISOString(),
+      ...activityPatch(job, this.config.retentionDays),
     });
     const { balance } = await this.credits.balance(uid);
     return { week: next, charged, balance };
@@ -352,9 +363,10 @@ export class GenerationService {
     const pricing = await getPricing(this.store);
     const used = job.usage.chatMessages;
     const charged = used >= pricing.chatFreeMessages ? pricing.chatCost : 0;
+    const chargeId = chatLedgerId(id, used + 1);
     if (charged > 0) {
       await this.credits.charge(uid, {
-        id: chatLedgerId(id, used + 1),
+        id: chargeId,
         ref: id,
         amount: charged,
         type: 'chat',
@@ -371,23 +383,44 @@ export class GenerationService {
       fullName: job.studentDetails?.fullName,
       matricNo: job.studentDetails?.matricNo,
     });
-    const reply = await this.ai.chat({
-      context: {
-        programme: job.programme,
-        department: job.department ?? '',
-        company: job.intake.company,
-        unit: job.intake.unit,
-        tasks: job.intake.tasks,
-        tools: job.intake.tools,
-        skills: job.intake.skills,
-        recentEntries: recent,
-        detail: job.intake.detail,
-      },
-      message: redacted.clean,
-    });
+    // The same redaction the week writer uses: identifiers never reach the provider, including
+    // anything the student typed into the placement details or into an edited entry.
+    const clean = (value: string): string => {
+      const result = redact(value, {
+        fullName: job.studentDetails?.fullName,
+        matricNo: job.studentDetails?.matricNo,
+      });
+      result.removed.forEach((item) => redacted.removed.push(item));
+      return result.clean;
+    };
+    let reply: string;
+    try {
+      reply = await this.ai.chat({
+        context: {
+          programme: job.programme,
+          department: job.department ?? '',
+          company: clean(job.intake.company),
+          unit: clean(job.intake.unit),
+          tasks: job.intake.tasks.map((task) => ({ ...task, text: clean(task.text) })),
+          tools: job.intake.tools.map(clean),
+          skills: job.intake.skills.map(clean),
+          recentEntries: recent.map(clean),
+          detail: job.intake.detail,
+        },
+        message: redacted.clean,
+      });
+    } catch (error) {
+      if (charged > 0) {
+        await this.credits
+          .refundCharge(uid, chargeId, charged, 'Chat failed — credits returned')
+          .catch(() => undefined);
+      }
+      throw error;
+    }
     await this.store.merge(`jobs/${id}`, {
       usage: { ...job.usage, chatMessages: used + 1 },
       updatedAt: new Date().toISOString(),
+      ...activityPatch(job, this.config.retentionDays),
     });
     return {
       reply,
@@ -399,6 +432,7 @@ export class GenerationService {
 
   /** Used by the export service to shorten overflowing text without inventing facts. */
   async shorten(text: string, maxChars: number): Promise<string> {
-    return this.ai.shorten({ text, maxChars });
+    // Same privacy contract as every other provider call: identifiers are removed first.
+    return this.ai.shorten({ text: redact(text).clean, maxChars });
   }
 }

@@ -48,6 +48,8 @@ describe('account deletion', () => {
     expect(await ctx.storage.exists(normalizedKey)).toBe(true);
 
     await ctx.store.merge(`users/${session.uid}`, { balance: 250 });
+    // A real ledger row, so the account-deletion purge is actually exercised.
+    await ctx.services.credits.purchase(session.uid, 'LGT_purge_test', 100);
     await request(ctx.app).post(`/api/jobs/${jobId}/select-template`).set(session.auth).send({ templateId: null });
 
     const response = await request(ctx.app).delete('/api/me').set(session.auth);
@@ -164,5 +166,61 @@ describe('generation failure', () => {
       where: [['uid', '==', session.uid]],
     });
     expect(ledger.some((entry) => entry.type === 'release' && entry.amount === plan.cost)).toBe(true);
+  }, 20_000);
+
+  it('retries as a new attempt, reserves again and charges exactly once', async () => {
+    // Regression: the student-facing retry used to reuse attempt 1, so commit threw
+    // "Reserved credits would go negative" after the AI had already rewritten every week.
+    const plan = computePlan({
+      startDate: '2026-02-02',
+      endDate: '2026-02-06',
+      workingDays: [1, 2, 3, 4, 5],
+    });
+    const jobId = 'job_ai_retry';
+    const now = new Date().toISOString();
+    await ctx.store.set(`jobs/${jobId}`, {
+      id: jobId,
+      uid: session.uid,
+      status: 'failed',
+      title: 'AI retry',
+      programme: 'SIWES',
+      schoolId: 'unilag',
+      input: { kind: 'pdf', files: [] },
+      normalized: {
+        key: `normalized/${session.uid}/${jobId}/original.pdf`,
+        bytes: 1024,
+        pages: 1,
+        pageWidthPt: 595,
+        pageHeightPt: 842,
+      },
+      mode: 'copysheet',
+      intake: QUICK_INTAKE,
+      plan,
+      usage: { previewsUsed: 0, chatMessages: 0, aiCalls: 0 },
+      outputs: [],
+      queue: { state: 'failed', kind: 'generate', attempts: 1 },
+      generationAttempt: 1,
+      error: { code: 'AI_UNAVAILABLE', message: 'provider down', retryable: true },
+      createdAt: now,
+      updatedAt: now,
+      lastActivityAt: now,
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+    } satisfies Job);
+
+    const retried = await ctx.services.jobs.retry(session.uid, jobId);
+    expect(retried.status).toBe('ready_to_generate');
+    expect(retried.generationAttempt).toBe(2);
+
+    await ctx.services.generation.start(session.uid, jobId, false);
+    expect((await ctx.services.credits.balance(session.uid)).reserved).toBe(plan.cost);
+    await ctx.services.generation.run(jobId);
+
+    const done = await ctx.store.get<Job>(`jobs/${jobId}`);
+    expect(done?.status).toBe('generated');
+    // Reserved on start, committed on success: charged exactly once at the plan price.
+    expect(await ctx.services.credits.balance(session.uid)).toEqual({
+      balance: 500 - plan.cost,
+      reserved: 0,
+    });
   }, 20_000);
 });

@@ -24,7 +24,7 @@ export async function compressPdf(
       const output = path.join(workDir, 'out.pdf');
       await fs.writeFile(source, input);
       for (const preset of ['ebook', 'screen'] as const) {
-        const result = runCommand(
+        const result = await runCommand(
           options.gsBin,
           [
             '-sDEVICE=pdfwrite',

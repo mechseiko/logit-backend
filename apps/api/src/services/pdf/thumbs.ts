@@ -55,7 +55,7 @@ export async function renderPages(
     const input = path.join(workDir, 'in.pdf');
     await fs.writeFile(input, pdfBytes);
     const prefix = path.join(workDir, 'page');
-    const result = runCommand(
+    const result = await runCommand(
       pdftoppmBin,
       ['-r', String(dpi), '-png', input, prefix],
       { timeoutMs: 180_000 },

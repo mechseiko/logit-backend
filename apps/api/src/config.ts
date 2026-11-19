@@ -47,9 +47,35 @@ export const config = {
   dataDir: process.env.DATA_DIR ?? path.join(repoRoot, '.data'),
   logLevel: process.env.LOG_LEVEL ?? (isProd ? 'info' : 'debug'),
 
+  /**
+   * How many proxies sit in front of the API. Render terminates TLS and forwards to us, so the
+   * client address is the last X-Forwarded-For hop: `1`. With this unset (or `false`) every request
+   * would look like it came from the proxy and the whole site would share one rate-limit bucket.
+   */
+  trustProxy: ((): number | false | string => {
+    const raw = process.env.TRUST_PROXY;
+    if (raw === undefined) return 1;
+    if (raw === 'false' || raw === '0') return false;
+    const hops = Number(raw);
+    return Number.isFinite(hops) ? hops : raw;
+  })(),
+  rateLimit: {
+    windowMs: int(process.env.RATE_LIMIT_WINDOW_MS, 60_000),
+    /** Authenticated API routes. */
+    api: int(process.env.RATE_LIMIT_API_PER_MIN, isProd ? 120 : 600),
+    /** Public routes: webhook, signed file transfers, dev sign-in, pricing. */
+    public: int(process.env.RATE_LIMIT_PUBLIC_PER_MIN, isProd ? 300 : 3000),
+  },
+
   authMode: (process.env.AUTH_MODE ?? (hasFirebase ? 'firebase' : 'dev')) as 'firebase' | 'dev',
   devAuthSecret: process.env.DEV_AUTH_SECRET ?? 'logit-local-dev',
-  adminBootstrapEmail: process.env.ADMIN_BOOTSTRAP_EMAIL,
+  /**
+   * In production this must be set explicitly (startupChecks refuses to boot without it).
+   * Local development falls back to the documented dev account so `npm run dev` behaves as the
+   * README describes without extra setup.
+   */
+  adminBootstrapEmail:
+    process.env.ADMIN_BOOTSTRAP_EMAIL ?? (nodeEnv === 'production' ? undefined : 'admin@uselogit.cv'),
   firebaseServiceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
 
   storeDriver: (process.env.STORE_DRIVER ?? (hasFirebase ? 'firestore' : 'memory')) as

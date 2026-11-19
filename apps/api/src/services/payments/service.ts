@@ -142,6 +142,11 @@ export class PaymentsService {
       );
     }
 
+    // Credits first, then the paid flag. `purchase` is keyed on the reference, so a crash in
+    // between leaves an initialized payment that the next webhook/verify retries safely; the
+    // reverse order used to strand a paid student with no credits and no retry path.
+    await this.credits.purchase(payment.uid, reference, payment.credits);
+
     const claim = await this.store.transaction(async (tx) => {
       const fresh = await tx.get<PaymentRecord>(`payments/${reference}`);
       const user = await tx.get<UserProfile>(`users/${payment.uid}`);
@@ -160,7 +165,6 @@ export class PaymentsService {
     });
 
     if (!claim.already) {
-      await this.credits.purchase(payment.uid, reference, payment.credits);
       const settled: PaymentRecord = { ...payment, status: 'success' };
       await this.referrals.rewardForPayment(payment.uid, settled);
     }
@@ -174,8 +178,18 @@ export class PaymentsService {
     return this.settle(reference);
   }
 
-  async handleWebhook(rawBody: Buffer, signature: string | undefined): Promise<{ handled: boolean }> {
-    if (!this.provider.verifyWebhookSignature(rawBody, signature)) {
+  /**
+   * Local simulator only: marks a payment as paid so the normal verify + settle path runs.
+   * Refused for the real provider and in production.
+   */
+  async simulatePayment(uid: string, reference: string): Promise<void> {
+    if (this.provider.name !== 'mock' || this.config.isProd) throw notFound('Payment not found.');
+    const payment = await this.store.get<PaymentRecord>(`payments/${reference}`);
+    if (!payment || payment.uid !== uid) throw notFound('Payment not found.');
+    await this.store.merge(`payments/${reference}`, { mockPaid: true });
+  }
+
+  async handleWebhook(rawBody: Buffer, signature: string | undefined): Promise<{ handled: boolean }> {    if (!this.provider.verifyWebhookSignature(rawBody, signature)) {
       throw new ApiError(401, 'PAYMENT_ERROR', 'Invalid webhook signature.');
     }
     let event: { event?: string; data?: { reference?: string } };

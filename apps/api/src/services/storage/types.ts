@@ -21,4 +21,6 @@ export interface StorageAdapter {
   signedGetUrl(key: string, downloadName?: string, ttlSeconds?: number): Promise<string>;
   /** Short-lived PUT URL the browser uploads to. */
   signedPutUrl(key: string, contentType: string, maxBytes: number, ttlSeconds?: number): Promise<SignedUpload>;
+  /** Round-trips a tiny probe object so readiness can prove the bucket is writable. */
+  healthCheck(): Promise<{ ok: boolean; detail: string }>;
 }

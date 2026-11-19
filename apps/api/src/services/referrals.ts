@@ -55,6 +55,8 @@ export class ReferralsService {
   /** Called after a successful top-up. Rewards only the friend's first qualifying payment, once. */
   async rewardForPayment(referredUid: string, payment: PaymentRecord): Promise<boolean> {
     if (payment.status !== 'success') return false;
+    // The referral promise is about the friend's FIRST top-up, not any later one.
+    if (payment.firstPayment !== true) return false;
     const pricing = await getPricing(this.store);
     if (payment.naira < pricing.referral.minNaira) return false;
 

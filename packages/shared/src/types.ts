@@ -217,6 +217,8 @@ export interface UserProfile {
 }
 
 export interface LedgerEntry {
+  /** Document id. Deterministic for reserve/commit/release, so a retry never double-applies. */
+  id?: string;
   uid: string;
   type:
     | 'purchase'

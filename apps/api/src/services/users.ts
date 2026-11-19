@@ -33,15 +33,14 @@ export class UsersService {
     return new Date().toISOString();
   }
 
+  /** Empty when the owner email is not configured — no account is an admin then. */
   ownerEmail(): string {
-    if (!this.config.adminBootstrapEmail) {
-      throw new Error('ADMIN_BOOTSTRAP_EMAIL must be set for admin operations.');
-    }
-    return this.config.adminBootstrapEmail;
+    return (this.config.adminBootstrapEmail ?? '').trim().toLowerCase();
   }
 
   isOwnerEmail(email: string | undefined): boolean {
-    return (email ?? '').toLowerCase() === this.ownerEmail().toLowerCase();
+    const owner = this.ownerEmail();
+    return owner.length > 0 && (email ?? '').toLowerCase() === owner;
   }
 
   async isAdmin(uid: string): Promise<boolean> {
@@ -88,7 +87,12 @@ export class UsersService {
 
     if (user.banned) return { user, isAdmin: false };
 
-    const isBootstrapAdmin = this.isOwnerEmail(user.email);
+    // Admin is granted only for a verified owner identity. An unverified email/password
+    // signup that happens to use the owner's address must never be promoted.
+    const isBootstrapAdmin =
+      authUser.emailVerified === true &&
+      authUser.provider !== 'password' &&
+      this.isOwnerEmail(user.email);
     if (isBootstrapAdmin && user.admin !== true) {
       await this.store.merge(`users/${user.uid}`, { admin: true });
       user = { ...user, admin: true };
@@ -197,12 +201,29 @@ export class UsersService {
       this.storage.deletePrefix(`template-requests/${uid}`),
       this.storage.deletePrefix(`templates/${uid}`),
     ]);
-    const ledger = await this.store.query<{ ref: string }>('creditLedger', { where: [['uid', '==', uid]] });
-    for (const entry of ledger) await this.store.delete(`creditLedger/${entry.ref}`);
+    const ledger = await this.store.query<{ id?: string; ref: string }>('creditLedger', {
+      where: [['uid', '==', uid]],
+    });
+    for (const entry of ledger) {
+      await this.store.delete(`creditLedger/${entry.id ?? entry.ref}`);
+    }
     const payments = await this.store.query<{ reference: string }>('payments', {
       where: [['uid', '==', uid]],
     });
     for (const payment of payments) await this.store.delete(`payments/${payment.reference}`);
+    // Layout-support and missing-school requests carry this uid and typed text: remove them too.
+    const templateRequests = await this.store.query<{ id?: string }>('templateRequests', {
+      where: [['uid', '==', uid]],
+    });
+    for (const request of templateRequests) {
+      if (request.id) await this.store.delete(`templateRequests/${request.id}`);
+    }
+    const schoolRequests = await this.store.query<{ id?: string }>('schoolRequests', {
+      where: [['uid', '==', uid]],
+    });
+    for (const request of schoolRequests) {
+      if (request.id) await this.store.delete(`schoolRequests/${request.id}`);
+    }
     // Referrals where this user was the friend.
     await this.store.delete(`referrals/${uid}`);
     // Referrals where this user was the referrer are voided so the friend is not counted.

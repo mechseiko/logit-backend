@@ -12,6 +12,19 @@ import {
   type TestContext,
 } from './helpers.js';
 import { makeLogbookPdf } from './fixtures.js';
+import { fitCharsPerLine } from '../src/services/copysheet.js';
+
+describe('copy sheet line width', () => {
+  it('never wraps to more characters than the entry column can hold', () => {
+    const entryWidth = 393;
+    // The old code honoured a 120-character request and drew past the right margin.
+    expect(fitCharsPerLine(120, entryWidth, 9)).toBe(87);
+    expect(fitCharsPerLine(120, entryWidth, 9)).toBeLessThanOrEqual(Math.floor(entryWidth / 4.5));
+    // A request that already fits is left alone, and a tiny column still yields a usable count.
+    expect(fitCharsPerLine(60, entryWidth, 9)).toBe(60);
+    expect(fitCharsPerLine(120, 120, 9)).toBeGreaterThan(0);
+  });
+});
 
 describe('copy-sheet path, preview limits and regeneration pricing', () => {
   let ctx: TestContext;

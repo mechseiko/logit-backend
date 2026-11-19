@@ -45,7 +45,9 @@ export function productionIssues(config: AppConfig): StartupIssue[] {
   if (config.devAuthSecret.length < 24 || config.devAuthSecret === 'change-me-in-production') {
     add('DEV_AUTH_SECRET', 'DEV_AUTH_SECRET must be a long random value (it signs file URLs).');
   }
-  if (config.adminBootstrapEmail === 'admin@uselogit.cv') {
+  if (!config.adminBootstrapEmail) {
+    add('ADMIN_BOOTSTRAP_EMAIL', 'ADMIN_BOOTSTRAP_EMAIL is required, otherwise nobody can administer the site.');
+  } else if (config.adminBootstrapEmail === 'admin@uselogit.cv') {
     add('ADMIN_BOOTSTRAP_EMAIL', 'Set ADMIN_BOOTSTRAP_EMAIL to the owner’s real Google email.');
   }
   if (config.allowedOrigins.some((origin) => origin.includes('localhost'))) {
@@ -76,7 +78,8 @@ export function startupSummary(
     retentionDays: config.retentionDays,
     entriesRetentionDays: config.entriesRetentionDays,
     maxConcurrentJobs: config.maxConcurrentJobs,
-    adminBootstrapEmail: config.adminBootstrapEmail,
+    /** Only whether admin bootstrap is configured — never the owner's personal address. */
+    adminConfigured: Boolean(config.adminBootstrapEmail),
     ...extra,
   };
 }

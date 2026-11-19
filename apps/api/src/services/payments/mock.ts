@@ -17,8 +17,8 @@ export class MockPaymentsProvider implements PaymentsProvider {
   ) {}
 
   async initialize(input: InitializeInput): Promise<{ authorizationUrl: string }> {
-    const url = new URL('/app/credits', this.config.appUrl);
-    url.searchParams.set('mock_reference', input.reference);
+    const url = new URL('/app/mock-pay', this.config.appUrl);
+    url.searchParams.set('reference', input.reference);
     return { authorizationUrl: url.toString() };
   }
 

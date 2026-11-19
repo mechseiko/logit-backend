@@ -328,6 +328,16 @@ export function createAdminRouter(
         config.storageDriver === 's3' &&
         services.ai.name !== 'mock' &&
         config.paymentsProvider !== 'mock';
+      // Prove the bucket accepts the server-side round trip an upload depends on, and that the
+      // site origin is allowed to make the browser-side PUT. CORS itself can only be checked from
+      // the origin, which the upload page does before sending files.
+      const storageProbe = await storage.healthCheck().catch((error: unknown) => ({
+        ok: false,
+        detail: error instanceof Error ? error.message : 'storage probe failed',
+      }));
+      const uploadOriginCovered = config.allowedOrigins.some(
+        (origin) => origin === config.appUrl || origin === config.appUrl.replace('https://', 'https://www.'),
+      );
       const checks = [
         {
           key: 'admin-email',
@@ -361,15 +371,29 @@ export function createAdminRouter(
         },
         {
           key: 'retention',
-          label: 'Retention within policy (≤30 days files, 180 days entries)',
-          ok: config.retentionDays <= 30 && config.entriesRetentionDays <= 365,
-          detail: `${config.retentionDays} days files · ${config.entriesRetentionDays} days entries`,
+          label: 'Retention within policy (files and entries ≤ 30 days after last activity)',
+          ok: config.retentionDays <= 30,
+          detail: `${config.retentionDays} days after last activity, capped at 30 days from creation`,
         },
         {
           key: 'storage',
           label: 'Storage below the 90% guard',
           ok: storageRatio < 0.9,
           detail: `${Math.round(storageRatio * 100)}% used`,
+        },
+        {
+          key: 'storage-writable',
+          label: 'Object storage accepts writes (presigned uploads can land)',
+          ok: storageProbe.ok,
+          detail: `${storageProbe.detail} · browser origin ${config.appUrl} must be allowed in the bucket CORS rule`,
+        },
+        {
+          key: 'upload-cors',
+          label: 'Site origin is listed for uploads',
+          ok: uploadOriginCovered,
+          detail: uploadOriginCovered
+            ? `${config.appUrl} is in ALLOWED_ORIGINS`
+            : `${config.appUrl} is missing from ALLOWED_ORIGINS (${config.allowedOrigins.join(', ') || 'empty'})`,
         },
       ];
       res.json({
