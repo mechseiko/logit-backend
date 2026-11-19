@@ -57,7 +57,7 @@ export class IngestService {
       }
       const file = job.input.files[0]!;
       if (file.size > LIMITS.maxPdfBytes) {
-        throw new IngestError('TOO_LARGE', 'That PDF is larger than 10 MB. Compress it and try again.');
+        throw new IngestError('TOO_LARGE', 'That PDF is larger than 20 MB. Compress it and try again.');
       }
       sourceBytes = await this.readFile(file.key);
       if (!looksLikePdf(sourceBytes)) {
@@ -103,7 +103,7 @@ export class IngestService {
       targetBytes: LIMITS.maxPdfOutputBytes,
     });
     if (compressed.bytes.byteLength > LIMITS.maxPdfHardBytes) {
-      throw new IngestError('TOO_LARGE', 'That PDF is still over 10 MB after compression.');
+      throw new IngestError('TOO_LARGE', 'That PDF is still over 20 MB after compression.');
     }
 
     const normalized = await loadPdf(compressed.bytes);

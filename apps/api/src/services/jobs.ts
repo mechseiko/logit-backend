@@ -96,7 +96,7 @@ export class JobsService {
     if (input.kind === 'pdf') {
       if (input.files.length !== 1) throw badRequest('Upload exactly one PDF.');
       const file = input.files[0]!;
-      if (file.size > LIMITS.maxPdfBytes) throw badRequest('PDFs must be 10 MB or smaller.');
+      if (file.size > LIMITS.maxPdfBytes) throw badRequest('PDFs must be 20 MB or smaller.');
     } else {
       if (input.files.length > LIMITS.maxImages) {
         throw badRequest(`You can upload up to ${LIMITS.maxImages} photos.`);

@@ -10,7 +10,7 @@ export interface CompressResult {
 
 /**
  * Ghostscript compression when available; otherwise a lossless-ish pdf-lib re-save.
- * The caller still enforces the 6 MB target / 10 MB hard limit.
+ * The caller still enforces the 6 MB target / 20 MB hard limit.
  */
 export async function compressPdf(
   input: Buffer,

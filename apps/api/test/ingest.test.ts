@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
+import { LIMITS } from '@logit/shared';
 import {
   createTestContext,
   onboard,
@@ -83,10 +84,10 @@ describe('ingest pipeline', () => {
       .set(session.auth)
       .send({
         kind: 'pdf',
-        files: [{ name: 'huge.pdf', type: 'application/pdf', size: 12 * 1024 * 1024 }],
+        files: [{ name: 'huge.pdf', type: 'application/pdf', size: LIMITS.maxPdfBytes + 1024 }],
       });
     expect(response.status).toBe(400);
-    expect(response.body.error.message).toMatch(/10 MB/);
+    expect(response.body.error.message).toMatch(/20 MB/);
   });
 
   it('enforces the per-user active job limit', async () => {

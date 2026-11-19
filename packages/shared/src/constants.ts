@@ -50,7 +50,7 @@ export const REFERRAL = {
 };
 
 export const LIMITS = {
-  maxPdfBytes: 10 * 1024 * 1024,
+  maxPdfBytes: 20 * 1024 * 1024,
   maxPdfPages: 50,
   maxImages: 60,
   maxImageBytes: 8 * 1024 * 1024,
