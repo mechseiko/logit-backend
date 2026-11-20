@@ -65,9 +65,10 @@ describe('ingest pipeline', () => {
       { name: 'page-2.jpg', type: 'image/jpeg', bytes: normal },
     ]);
     await processQueue(ctx);
-    const job = await waitForJob(ctx, jobId, (entry) =>
-      ['needs_layout_choice', 'awaiting_template'].includes(entry.status),
-    );
+    // Photos are copy-sheet only, so the job skips the layout choice and goes straight to intake.
+    const job = await waitForJob(ctx, jobId, (entry) => entry.status === 'needs_intake');
+    expect(job.mode).toBe('copysheet');
+    expect(job.analysis?.candidates).toEqual([]);
     expect(job.normalized?.pages).toBe(2);
     expect(job.analysis?.hasEmbeddedText).toBe(false);
     expect(job.analysis?.thumbnailKind).toBe('placeholder');
