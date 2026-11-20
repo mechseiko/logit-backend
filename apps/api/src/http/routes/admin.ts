@@ -178,7 +178,13 @@ export function createAdminRouter(
         z.object({
           name: z.string().min(1).max(200),
           type: z.string().min(1).max(100),
-          size: z.number().int().min(1).max(10 * 1024 * 1024),
+          // A blank logbook scan is routinely 20-30 MB before anyone compresses it, so the cap is
+          // generous and the message names the real number instead of saying "invalid".
+          size: z
+            .number()
+            .int()
+            .min(1)
+            .max(40 * 1024 * 1024, 'Template PDFs must be 40 MB or smaller.'),
         }),
         req.body,
       );
