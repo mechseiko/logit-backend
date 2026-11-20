@@ -146,12 +146,23 @@ export class IngestService {
       candidates: [],
       thumbnailKind: rendered.kind,
     };
-    analysis.candidates = await templates.candidates(job.programme, job.schoolId, analysis);
+    // Photos are compiled into an A4 document we do not control: perspective, crop and lighting vary
+    // per shot, and we have not proven alignment against a real layout. Until that is measured, a
+    // photo upload is copy-sheet only. A PDF keeps its own geometry, so it can match a template.
+    const photosOnly = job.input.kind === 'images';
+    analysis.candidates = photosOnly
+      ? []
+      : await templates.candidates(job.programme, job.schoolId, analysis);
 
     const now = new Date().toISOString();
     const next: Job = {
       ...job,
-      status: analysis.candidates.length > 0 ? 'needs_layout_choice' : 'awaiting_template',
+      status: photosOnly
+        ? 'needs_intake'
+        : analysis.candidates.length > 0
+          ? 'needs_layout_choice'
+          : 'awaiting_template',
+      mode: photosOnly ? 'copysheet' : job.mode,
       normalized: {
         key: normalizedKey,
         bytes: compressed.bytes.byteLength,

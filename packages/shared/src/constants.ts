@@ -171,8 +171,8 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 /** Public site details — hardcoded product facts, not configuration. */
 export const SITE_URL = 'https://uselogit.cv';
 /** One mailbox until the support@ and privacy@ addresses exist. */
-export const SUPPORT_EMAIL = 'mechseiko@gmail.com';
+export const SUPPORT_EMAIL = 'hello@uselogit.cv';
 export const SUPPORT_WHATSAPP = '2348080296575';
-export const DPO_EMAIL = 'mechseiko@gmail.com';
+export const DPO_EMAIL = 'privacy@uselogit.cv';
 export const LEGAL_ENTITY_NAME = 'Logit';
 export const LEGAL_ENTITY_ADDRESS = 'Lagos, Nigeria';

@@ -8,3 +8,4 @@ export * from './template.js';
 export * from './schemas.js';
 export * from './status.js';
 export * from './fingerprint.js';
+export * from './products.js';

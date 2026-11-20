@@ -93,6 +93,42 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
     }),
   );
 
+  /**
+   * Which layouts exist, and whether a given school + programme is covered by one.
+   *
+   * Public and deliberately thin: a layout's name, its programmes and how many schools it serves.
+   * No page images, no school names we were not given, nothing that identifies a student.
+   */
+  router.get(
+    '/api/layouts',
+    asyncHandler(async (req, res) => {
+      const schoolId = typeof req.query.schoolId === 'string' ? req.query.schoolId.trim() : '';
+      const programme = typeof req.query.programme === 'string' ? req.query.programme.trim() : '';
+      const published = await services.templates.listPublished();
+      const layouts = published.map((template) => ({
+        id: template.id,
+        name: template.name,
+        programmes: template.programmes,
+        schools: template.schoolIds.length,
+        anySchool: template.schoolIds.length === 0,
+      }));
+      const matched = published.filter(
+        (template) =>
+          (!programme || template.programmes.includes(programme as never)) &&
+          (template.schoolIds.length === 0 || (schoolId && template.schoolIds.includes(schoolId))),
+      );
+      res.json({
+        layouts,
+        coverage: {
+          schoolId: schoolId || null,
+          programme: programme || null,
+          available: matched.length > 0,
+          matches: matched.map((template) => ({ id: template.id, name: template.name })),
+        },
+      });
+    }),
+  );
+
   // Public so the invite page can avoid promising credits for a code that does not exist.
   // Returns only a boolean: no owner, no profile, nothing enumerable beyond "this code exists".
   router.get(
