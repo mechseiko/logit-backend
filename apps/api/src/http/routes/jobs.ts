@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { z } from 'zod';
 import {
   chatSchema,
@@ -8,15 +8,45 @@ import {
   selectTemplateSchema,
   submitSchema,
   weekUpdateSchema,
+  LIMITS,
 } from '@logit/shared';
 import type { AppConfig } from '../../config.js';
 import { requireProfile } from '../context.js';
 import { asyncHandler, parseBody } from '../middleware.js';
+import { badRequest } from '../../errors.js';
 import type { Services } from '../../services/index.js';
 import { signedTemplatePreview } from './helpers.js';
+import { compressPdf } from '../../services/pdf/compress.js';
 
 export function createJobsRouter(services: Services, config: AppConfig): Router {
   const router = Router();
+
+  /**
+   * Compress a PDF before it is uploaded anywhere. The browser posts the raw bytes (no multipart),
+   * we run the same Ghostscript pass the ingest pipeline uses, and the response is the smaller file.
+   */
+  router.post(
+    '/uploads/compress',
+    express.raw({ type: ['application/pdf', 'application/octet-stream'], limit: '24mb' }),
+    asyncHandler(async (req, res) => {
+      requireProfile(req);
+      const body = req.body as Buffer;
+      if (!body || body.length === 0) throw badRequest('Send the PDF as the request body.');
+      if (body.length > LIMITS.maxPdfBytes) {
+        throw badRequest(`PDFs must be 20 MB or smaller. This one is ${(body.length / 1024 / 1024).toFixed(1)} MB.`);
+      }
+      if (body.subarray(0, 5).toString('latin1') !== '%PDF-') throw badRequest('That file is not a PDF.');
+      const result = await compressPdf(body, {
+        tmpDir: `${config.dataDir}/tmp`,
+        gsBin: config.pdfTools.ghostscript,
+        targetBytes: LIMITS.maxPdfOutputBytes,
+      });
+      res.setHeader('content-type', 'application/pdf');
+      res.setHeader('x-logit-compression', result.method);
+      res.setHeader('x-logit-original-bytes', String(body.length));
+      res.send(result.bytes);
+    }),
+  );
 
   router.post(
     '/uploads/presign',
