@@ -22,7 +22,7 @@ import { badRequest, conflict, limitReached, notFound, rateLimited } from '../er
 import { getPricing } from './pricing.js';
 import { activityPatch, extendedExpiry } from './retention.js';
 import { getSchool } from './schools.js';
-import { TemplatesService } from './templates.js';
+import { ProfilesService } from './profiles.js';
 import { proxyUploadUrl, safeFileName, type StorageAdapter } from './storage/index.js';
 
 export interface PresignResult {
@@ -41,7 +41,7 @@ export class JobsService {
     private readonly store: Store,
     private readonly storage: StorageAdapter,
     private readonly config: AppConfig,
-    private readonly templates: TemplatesService,
+    private readonly profiles: ProfilesService,
   ) {}
 
   private now(): string {
@@ -125,6 +125,7 @@ export class JobsService {
       type: file.type,
     }));
     const title = input.files[0]?.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 80) || 'My logbook';
+    const resolved = await this.profiles.resolveFor(profile.schoolId, profile.programme ?? 'SIWES');
     const job: Job = {
       id,
       uid,
@@ -135,7 +136,7 @@ export class JobsService {
       schoolName: profile.schoolName,
       department: profile.department,
       input: { kind: input.kind, files },
-      mode: null,
+      profileId: resolved.id,
       usage: { previewsUsed: 0, chatMessages: 0, aiCalls: 0 },
       outputs: [],
       queue: { state: 'idle', attempts: 0 },
@@ -262,87 +263,12 @@ export class JobsService {
     return { url: await this.storage.signedGetUrl(key, `page-${page}.png`) };
   }
 
-  async selectTemplate(uid: string, id: string, templateId: string | null): Promise<Job> {
-    const job = await this.loadOwned(uid, id);
-    if (job.status !== 'needs_layout_choice' && job.status !== 'awaiting_template') {
-      throw conflict('The layout for this logbook is already confirmed.');
-    }
-    if (!templateId) {
-      const next: Job = { ...job, status: 'awaiting_template', mode: null, updatedAt: this.now() };
-      await this.store.set(`jobs/${id}`, next);
-      return next;
-    }
-    const template = await this.templates.requirePublished(templateId);
-    if (!template.programmes.includes(job.programme)) {
-      throw badRequest('That layout is not for your programme.');
-    }
-    const next: Job = {
-      ...job,
-      templateId,
-      mode: 'template',
-      status: 'needs_intake',
-      updatedAt: this.now(),
-      ...activityPatch(job, this.config.retentionDays),
-    };
-    await this.store.set(`jobs/${id}`, next);
-    return next;
-  }
-
-  async requestTemplate(uid: string, id: string): Promise<Job> {
-    const job = await this.loadOwned(uid, id);
-    if (job.status !== 'awaiting_template' && job.status !== 'needs_layout_choice') {
-      throw conflict('Template requests are only available before the layout is confirmed.');
-    }
-    if (!job.analysis || !job.normalized) throw conflict('Wait for the analysis to finish.');
-    const thumb = await this.storage.get(`thumbs/${uid}/${id}/p1.png`);
-    const requestId = `tplreq_${randomBytes(5).toString('hex')}`;
-    const key = `template-requests/${uid}/${id}/page1.png`;
-    await this.storage.put(key, thumb, 'image/png');
-    const now = this.now();
-    await this.store.set(`templateRequests/${requestId}`, {
-      id: requestId,
-      uid,
-      jobId: id,
-      schoolId: job.schoolId,
-      programme: job.programme,
-      pageImageKey: key,
-      consent: true,
-      status: 'open',
-      createdAt: now,
-    });
-    const next: Job = {
-      ...job,
-      status: 'awaiting_template',
-      warning: 'Request sent. You can continue with a copy sheet now.',
-      updatedAt: now,
-    };
-    await this.store.set(`jobs/${id}`, next);
-    return next;
-  }
-
-  async useCopySheet(uid: string, id: string): Promise<Job> {
-    const job = await this.loadOwned(uid, id);
-    if (job.status !== 'awaiting_template' && job.status !== 'needs_layout_choice') {
-      throw conflict('You can only switch before answering the questions.');
-    }
-    const next: Job = {
-      ...job,
-      mode: 'copysheet',
-      status: 'needs_intake',
-      updatedAt: this.now(),
-      ...activityPatch(job, this.config.retentionDays),
-    };
-    await this.store.set(`jobs/${id}`, next);
-    return next;
-  }
-
   async saveIntake(
     uid: string,
     id: string,
     body: { intake: unknown; studentDetails?: Record<string, string> },
   ): Promise<{ job: Job; plan: Plan }> {
     const job = await this.loadOwned(uid, id);
-    if (!job.mode) throw conflict('Choose a layout first.');
     if (job.status === 'generating' || job.status === 'queued' || job.status === 'processing') {
       throw conflict('Wait for the current step to finish.');
     }
@@ -354,7 +280,7 @@ export class JobsService {
       text: task.text,
     }));
     const intake: IntakeAnswers = { ...parsed.data, tasks };
-    const template = job.templateId ? await this.templates.get(job.templateId) : null;
+    const profile = await this.profiles.require(job.profileId);
     const pricing = await getPricing(this.store);
     const plan = computePlan(
       {
@@ -363,7 +289,7 @@ export class JobsService {
         workingDays: intake.workingDays,
         holidays: intake.holidays,
         extraDaysOff: intake.extraDaysOff,
-        maxUnits: template?.unit.maxUnits,
+        maxUnits: profile.weeks,
       },
       pricing,
     );
@@ -432,25 +358,17 @@ export class JobsService {
     return next;
   }
 
-  /** Tasks for the intake form: template-dependent fields and copy-sheet limits. */
+  /** What the intake form needs to collect, from the profile the job was created against. */
   async intakeHints(uid: string, id: string): Promise<{
-    mode: 'template' | 'copysheet';
-    templateId?: string;
-    templateName?: string;
+    profileId: string;
+    profileName: string;
+    daysPerWeek: number;
+    weeks: number;
     needsStudentDetails: { key: string; label: string }[];
     needsWeeklySummary: boolean;
-    maxUnits?: number;
-    linesPerDay?: number;
-    charsPerLine?: number;
   }> {
     const job = await this.loadOwned(uid, id);
-    const template = job.templateId ? await this.templates.get(job.templateId) : null;
-    const detailFields = new Set<string>();
-    if (template) {
-      for (const field of [...template.unit.fields, ...template.staticFields]) {
-        if (field.type === 'student_detail' && field.detailKey) detailFields.add(field.detailKey);
-      }
-    }
+    const profile = await this.profiles.require(job.profileId);
     const labels: Record<string, string> = {
       fullName: 'Full name',
       matricNo: 'Matric number',
@@ -462,16 +380,15 @@ export class JobsService {
       programme: 'Programme',
     };
     return {
-      mode: job.mode ?? 'copysheet',
-      templateId: job.templateId,
-      templateName: template?.name,
-      needsStudentDetails: [...detailFields].map((key) => ({ key, label: labels[key] ?? key })),
-      needsWeeklySummary: Boolean(
-        template?.unit.fields.some((field) => field.type === 'weekly_summary'),
-      ),
-      maxUnits: template?.unit.maxUnits,
-      linesPerDay: job.mode === 'copysheet' ? 5 : undefined,
-      charsPerLine: job.mode === 'copysheet' ? 70 : undefined,
+      profileId: profile.id,
+      profileName: profile.name,
+      daysPerWeek: profile.daysPerWeek,
+      weeks: profile.weeks,
+      needsStudentDetails: ['fullName', 'matricNo', 'department', 'level', 'school'].map((key) => ({
+        key,
+        label: labels[key] ?? key,
+      })),
+      needsWeeklySummary: true,
     };
   }
 

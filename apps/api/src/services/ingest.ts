@@ -9,7 +9,6 @@ import sharp from 'sharp';
 import type { AppConfig } from '../config.js';
 import type { Store } from '../db/index.js';
 import { imagesToPdf, loadPdf, looksLikePdf, pdfInfo, extractEmbeddedText, compressPdf, differenceHash, renderPages } from './pdf/index.js';
-import type { TemplatesService } from './templates.js';
 import { activityPatch } from './retention.js';
 import type { StorageAdapter } from './storage/index.js';
 
@@ -17,7 +16,6 @@ export interface IngestDeps {
   store: Store;
   storage: StorageAdapter;
   config: AppConfig;
-  templates: TemplatesService;
 }
 
 export class IngestError extends Error {
@@ -43,7 +41,7 @@ export class IngestService {
   }
 
   async process(jobId: string): Promise<void> {
-    const { store, storage, config, templates } = this.deps;
+    const { store, storage, config } = this.deps;
     const job = await store.get<Job>(`jobs/${jobId}`);
     if (!job) throw new IngestError('NOT_FOUND', 'Job not found.');
     if (job.input.files.length === 0) {
@@ -143,26 +141,16 @@ export class IngestService {
         pageSizeKey: makePageSizeKey(info.width, info.height),
         dhash: hashes,
       },
-      candidates: [],
       thumbnailKind: rendered.kind,
+      // A logbook is a multi-page form. We check the shape, never whether the placement is genuine.
+      looksLikeLogbook: info.pages >= 2,
+      detectedDaysPerWeek: undefined,
     };
-    // Photos are compiled into an A4 document we do not control: perspective, crop and lighting vary
-    // per shot, and we have not proven alignment against a real layout. Until that is measured, a
-    // photo upload is copy-sheet only. A PDF keeps its own geometry, so it can match a template.
-    const photosOnly = job.input.kind === 'images';
-    analysis.candidates = photosOnly
-      ? []
-      : await templates.candidates(job.programme, job.schoolId, analysis);
 
     const now = new Date().toISOString();
     const next: Job = {
       ...job,
-      status: photosOnly
-        ? 'needs_intake'
-        : analysis.candidates.length > 0
-          ? 'needs_layout_choice'
-          : 'awaiting_template',
-      mode: photosOnly ? 'copysheet' : job.mode,
+      status: 'needs_intake',
       normalized: {
         key: normalizedKey,
         bytes: compressed.bytes.byteLength,

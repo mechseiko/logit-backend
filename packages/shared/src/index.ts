@@ -4,7 +4,7 @@ export * from './money.js';
 export * from './calendar.js';
 export * from './fit.js';
 export * from './redact.js';
-export * from './template.js';
+export * from './profile.js';
 export * from './schemas.js';
 export * from './status.js';
 export * from './fingerprint.js';

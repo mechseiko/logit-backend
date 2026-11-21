@@ -1,15 +1,11 @@
 import type { DetailLevel, Programme } from './constants.js';
 
-export type TemplateStatus = 'draft' | 'pending_review' | 'published';
-export type JobMode = 'template' | 'copysheet';
-export type ExportKind = 'filled' | 'copysheet' | 'preview';
+export type ExportKind = 'document' | 'preview';
 
 export type JobStatus =
   | 'created'
   | 'queued'
   | 'processing'
-  | 'needs_layout_choice'
-  | 'awaiting_template'
   | 'needs_intake'
   | 'ready_to_generate'
   | 'generating'
@@ -22,8 +18,6 @@ export const JOB_STATUSES: JobStatus[] = [
   'created',
   'queued',
   'processing',
-  'needs_layout_choice',
-  'awaiting_template',
   'needs_intake',
   'ready_to_generate',
   'generating',
@@ -120,9 +114,12 @@ export interface JobAnalysis {
   pageCount: number;
   pageSizeKey: string;
   fingerprint: { pageCount: number; pageSizeKey: string; dhash: string[] };
-  candidates: { templateId: string; score: number }[];
   /** How the page images were produced: real raster (poppler/gs) or placeholder. */
   thumbnailKind: 'raster' | 'placeholder';
+  /** True when the pages look like a logbook form: a grid of rows, mostly empty. */
+  looksLikeLogbook: boolean;
+  /** Days per week the form appears to have (5 or 6), when it could be read. */
+  detectedDaysPerWeek?: number;
 }
 
 export interface JobNormalized {
@@ -173,8 +170,8 @@ export interface Job {
   input: { kind: 'pdf' | 'images'; files: StoredFile[] };
   normalized?: JobNormalized;
   analysis?: JobAnalysis;
-  mode: JobMode | null;
-  templateId?: string;
+  /** The school structure used to lay the document out (set at submit). */
+  profileId: string;
   intake?: IntakeAnswers;
   /** Server-only: filled into the PDF, never sent to an AI provider. */
   studentDetails?: StudentDetails;

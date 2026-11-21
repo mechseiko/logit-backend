@@ -4,8 +4,6 @@ export const ACTIVE_JOB_STATUSES: JobStatus[] = [
   'created',
   'queued',
   'processing',
-  'needs_layout_choice',
-  'awaiting_template',
   'needs_intake',
   'ready_to_generate',
   'generating',
@@ -16,9 +14,7 @@ export const ACTIVE_JOB_STATUSES: JobStatus[] = [
 const TRANSITIONS: Record<JobStatus, JobStatus[]> = {
   created: ['queued', 'expired', 'failed'],
   queued: ['processing', 'failed', 'expired'],
-  processing: ['needs_layout_choice', 'awaiting_template', 'needs_intake', 'failed'],
-  needs_layout_choice: ['needs_intake', 'awaiting_template', 'failed', 'expired'],
-  awaiting_template: ['needs_intake', 'failed', 'expired'],
+  processing: ['needs_intake', 'failed'],
   needs_intake: ['ready_to_generate', 'failed', 'expired'],
   ready_to_generate: ['generating', 'needs_intake', 'failed'],
   generating: ['generated', 'failed'],
@@ -36,8 +32,6 @@ export const STATUS_LABELS: Record<JobStatus, string> = {
   created: 'New',
   queued: 'Queued',
   processing: 'Analysing',
-  needs_layout_choice: 'Choose layout',
-  awaiting_template: 'Layout needed',
   needs_intake: 'Questions',
   ready_to_generate: 'Ready to generate',
   generating: 'Writing entries',
@@ -52,18 +46,16 @@ export const STATUS_STEP: Record<JobStatus, number> = {
   created: 0,
   queued: 1,
   processing: 1,
-  needs_layout_choice: 2,
-  awaiting_template: 2,
-  needs_intake: 3,
-  ready_to_generate: 4,
-  generating: 5,
-  generated: 6,
-  exported: 7,
+  needs_intake: 2,
+  ready_to_generate: 3,
+  generating: 4,
+  generated: 5,
+  exported: 6,
   failed: 1,
-  expired: 7,
+  expired: 6,
 };
 
-export const JOB_STEPS = ['Upload', 'Analysis', 'Layout', 'Questions', 'Preview', 'Generate', 'Review', 'Download'] as const;
+export const JOB_STEPS = ['Upload', 'Analysis', 'Questions', 'Preview', 'Generate', 'Review', 'Download'] as const;
 
 export function isJobActive(status: JobStatus): boolean {
   return ACTIVE_JOB_STATUSES.includes(status) && status !== 'exported';

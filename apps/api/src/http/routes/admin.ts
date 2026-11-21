@@ -3,10 +3,8 @@ import { z } from 'zod';
 import {
   adminAdjustSchema,
   adminBanSchema,
-  resolveTemplateRequestSchema,
+  profileInputSchema,
   schoolUpsertSchema,
-  templateInputSchema,
-  type Programme,
 } from '@logit/shared';
 import type { AppConfig } from '../../config.js';
 import { requireAuthUser } from '../context.js';
@@ -17,13 +15,6 @@ import { getPricing, setPricing } from '../../services/pricing.js';
 import { createOrUpdateSchool, listSchools } from '../../services/schools.js';
 import { proxyUploadUrl, safeFileName } from '../../services/storage/index.js';
 import type { Store } from '../../db/index.js';
-
-const fromUploadSchema = z.object({
-  uploadKey: z.string().min(3),
-  name: z.string().trim().min(2).max(120),
-  programmes: z.array(z.enum(['SIWES', 'SWEP', 'IT'])).min(1),
-  schoolIds: z.array(z.string()).max(100).default([]),
-});
 
 export function createAdminRouter(
   services: Services,
@@ -109,65 +100,42 @@ export function createAdminRouter(
     }),
   );
 
+  /**
+   * Logbook profiles: the structure a document is built for. Six fields and a school, no box drawing.
+   */
   router.get(
-    '/templates',
+    '/profiles',
     asyncHandler(async (_req, res) => {
-      res.json({ templates: await services.templates.listAll() });
+      res.json({ profiles: await services.profiles.listAll() });
     }),
   );
 
   router.post(
-    '/templates',
+    '/profiles',
     asyncHandler(async (req, res) => {
-      const body = parseBody(templateInputSchema, req.body);
-      const template = await services.templates.create(body, adminUid(req));
-      await services.admin.log(adminUid(req), 'template.create', template.id);
-      res.json({ template });
+      const body = parseBody(profileInputSchema, req.body);
+      const profile = await services.profiles.create({ ...body, status: body.status ?? 'published' });
+      await services.admin.log(adminUid(req), 'profile.create', profile.id);
+      res.json({ profile });
     }),
   );
 
   router.put(
-    '/templates/:id',
+    '/profiles/:id',
     asyncHandler(async (req, res) => {
-      const body = parseBody(templateInputSchema, req.body);
-      const template = await services.templates.update(req.params.id!, body);
-      await services.admin.log(adminUid(req), 'template.update', template.id);
-      res.json({ template });
+      const body = parseBody(profileInputSchema.partial(), req.body);
+      const profile = await services.profiles.update(req.params.id!, body);
+      await services.admin.log(adminUid(req), 'profile.update', profile.id);
+      res.json({ profile });
     }),
   );
 
-  router.post(
-    '/templates/:id/publish',
+  router.delete(
+    '/profiles/:id',
     asyncHandler(async (req, res) => {
-      const template = await services.templates.publish(req.params.id!);
-      await services.admin.log(adminUid(req), 'template.publish', template.id);
-      res.json({ template });
-    }),
-  );
-
-  router.get(
-    '/templates/:id/pages/:page',
-    asyncHandler(async (req, res) => {
-      const page = Math.max(1, Number.parseInt(req.params.page!, 10) || 1);
-      res.json(await services.templates.pageUrl(req.params.id!, page));
-    }),
-  );
-
-  router.post(
-    '/templates/from-upload',
-    asyncHandler(async (req, res) => {
-      const body = parseBody(fromUploadSchema, req.body);
-      const template = await services.templates.createFromUpload(
-        {
-          uploadKey: body.uploadKey,
-          name: body.name,
-          programmes: body.programmes as Programme[],
-          schoolIds: body.schoolIds ?? [],
-        },
-        adminUid(req),
-      );
-      await services.admin.log(adminUid(req), 'template.fromUpload', template.id);
-      res.json({ template });
+      await services.profiles.remove(req.params.id!);
+      await services.admin.log(adminUid(req), 'profile.delete', req.params.id!);
+      res.json({ ok: true });
     }),
   );
 
@@ -195,22 +163,6 @@ export function createAdminRouter(
         maxBytes: 10 * 1024 * 1024,
       });
       res.json({ key, url: signed.url, method: signed.method, headers: signed.headers });
-    }),
-  );
-
-  router.get(
-    '/template-requests',
-    asyncHandler(async (_req, res) => {
-      res.json({ requests: await services.admin.templateRequests() });
-    }),
-  );
-
-  router.post(
-    '/template-requests/:id/resolve',
-    asyncHandler(async (req, res) => {
-      const body = parseBody(resolveTemplateRequestSchema, req.body);
-      await services.admin.resolveTemplateRequest(req.params.id!, body, adminUid(req));
-      res.json({ ok: true });
     }),
   );
 
@@ -325,8 +277,8 @@ export function createAdminRouter(
   router.get(
     '/launch-readiness',
     asyncHandler(async (_req, res) => {
-      const templates = await services.templates.listAll();
-      const publishedTemplates = templates.filter((template) => template.status === 'published').length;
+      const profiles = await services.profiles.listAll();
+      const publishedProfiles = profiles.filter((profile) => profile.status === 'published').length;
       const used = await storage.usedBytes('');
       const storageRatio = used / config.storageBudgetBytes;
       const providersLive =
@@ -370,10 +322,10 @@ export function createAdminRouter(
           detail: `auth=${config.authMode} storage=${config.storageDriver} ai=${services.ai.name} pay=${config.paymentsProvider}`,
         },
         {
-          key: 'templates',
-          label: 'At least one published layout',
-          ok: publishedTemplates > 0,
-          detail: `${publishedTemplates} published of ${templates.length}`,
+          key: 'profiles',
+          label: 'At least one published logbook profile',
+          ok: publishedProfiles > 0,
+          detail: `${publishedProfiles} published of ${profiles.length}`,
         },
         {
           key: 'retention',
@@ -420,7 +372,7 @@ export function createAdminRouter(
           retentionDays: config.retentionDays,
           entriesRetentionDays: config.entriesRetentionDays,
         },
-        publishedTemplates,
+        publishedProfiles,
         brandExpected: [
           '/brand/logo.svg',
           '/brand/logo-mark.svg',

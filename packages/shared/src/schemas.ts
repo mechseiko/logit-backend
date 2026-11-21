@@ -58,10 +58,6 @@ export const submitSchema = z.object({
   orderedKeys: z.array(z.string().min(1).max(300)).min(1).max(60),
 });
 
-export const selectTemplateSchema = z.object({ templateId: z.string().min(1).nullable() });
-export const requestTemplateSchema = z.object({ consent: z.literal(true) });
-export const modeSchema = z.object({ mode: z.literal('copysheet') });
-
 export const taskInputSchema = z.object({ text: z.string().trim().min(3).max(300) });
 
 export const intakeSchema = z
@@ -146,10 +142,30 @@ export const schoolUpsertSchema = z.object({
 
 export const schoolRequestSchema = z.object({ name: z.string().trim().min(2).max(160) });
 
-export const resolveTemplateRequestSchema = z.union([
-  z.object({ templateId: z.string().min(1) }),
-  z.object({ reject: z.literal(true) }),
-]);
+export const profileInputSchema = z.object({
+  id: z.string().trim().min(2).max(60).optional(),
+  name: z.string().trim().min(2).max(120),
+  schoolIds: z.array(z.string().trim().min(1).max(60)).max(50).default([]),
+  programmes: z.array(z.enum(['SIWES', 'SWEP', 'IT'])).min(1).max(3),
+  daysPerWeek: z.union([z.literal(5), z.literal(6)]),
+  weeks: z.number().int().min(1).max(52),
+  monthlyEvery: z.number().int().min(2).max(12).optional(),
+  title: z.string().trim().min(2).max(160),
+  labels: z
+    .object({
+      weekly: z.string().trim().min(2).max(80),
+      monthly: z.string().trim().min(2).max(80),
+      summary: z.string().trim().min(2).max(80),
+      supervisor: z.string().trim().min(2).max(120),
+    })
+    .default({
+      weekly: 'Daily record of activities',
+      monthly: 'Monthly summary of activities',
+      summary: 'Weekly summary',
+      supervisor: 'Supervisor’s remark, signature and company stamp',
+    }),
+  status: z.enum(['published', 'draft']).default('published'),
+});
 
 export const pricingUpdateSchema = z.object({
   packs: z

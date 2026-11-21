@@ -42,7 +42,7 @@ describe('account deletion', () => {
       { name: 'delete.pdf', type: 'application/pdf', bytes: pdf },
     ]);
     await processQueue(ctx);
-    const job = await waitForJob(ctx, jobId, (entry) => entry.status === 'needs_layout_choice');
+    const job = await waitForJob(ctx, jobId, (entry) => entry.status === 'needs_intake');
     const normalizedKey = job.normalized!.key;
     const thumbKey = `thumbs/${session.uid}/${jobId}/p1.png`;
     expect(await ctx.storage.exists(normalizedKey)).toBe(true);

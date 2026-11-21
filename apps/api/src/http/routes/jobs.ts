@@ -2,10 +2,7 @@ import express, { Router } from 'express';
 import { z } from 'zod';
 import {
   chatSchema,
-  modeSchema,
   reportGenerateSchema,
-  requestTemplateSchema,
-  selectTemplateSchema,
   submitSchema,
   weekUpdateSchema,
   LIMITS,
@@ -15,7 +12,6 @@ import { requireProfile } from '../context.js';
 import { asyncHandler, parseBody } from '../middleware.js';
 import { badRequest } from '../../errors.js';
 import type { Services } from '../../services/index.js';
-import { signedTemplatePreview } from './helpers.js';
 import { compressPdf } from '../../services/pdf/compress.js';
 
 export function createJobsRouter(services: Services, config: AppConfig): Router {
@@ -81,21 +77,17 @@ export function createJobsRouter(services: Services, config: AppConfig): Router 
     asyncHandler(async (req, res) => {
       const profile = requireProfile(req);
       const job = await services.jobs.get(profile.uid, req.params.id!);
-      const template = job.templateId ? await services.templates.get(job.templateId) : null;
       const weeks = await services.jobs.weeks(profile.uid, req.params.id!);
+      const logbookProfile = await services.profiles.require(job.profileId);
       res.json({
         job,
-        template: template
-          ? {
-              id: template.id,
-              name: template.name,
-              pageCount: template.fingerprint.pageCount ?? 1,
-              pagesPerUnit: template.unit.pagesPerUnit,
-              hasWeeklySummary: template.unit.fields.some(
-                (field) => field.type === 'weekly_summary',
-              ),
-            }
-          : null,
+        profile: {
+          id: logbookProfile.id,
+          name: logbookProfile.name,
+          daysPerWeek: logbookProfile.daysPerWeek,
+          weeks: logbookProfile.weeks,
+          monthlyEvery: logbookProfile.monthlyEvery ?? null,
+        },
         weeks,
         limits: { retentionDays: config.retentionDays },
       });
@@ -127,60 +119,6 @@ export function createJobsRouter(services: Services, config: AppConfig): Router 
       const page = Math.max(1, Number.parseInt(req.params.page!, 10) || 1);
       const result = await services.jobs.thumbUrl(profile.uid, req.params.id!, page);
       res.json(result);
-    }),
-  );
-
-  router.get(
-    '/jobs/:id/candidates',
-    asyncHandler(async (req, res) => {
-      const profile = requireProfile(req);
-      const job = await services.jobs.get(profile.uid, req.params.id!);
-      const candidates = job.analysis?.candidates ?? [];
-      const enriched = [];
-      for (const candidate of candidates) {
-        const template = await services.templates.get(candidate.templateId);
-        if (!template) continue;
-        enriched.push({
-          templateId: template.id,
-          name: template.name,
-          score: candidate.score,
-          pageUrl: await signedTemplatePreview(services, template.id),
-        });
-      }
-      const pageUrl = job.normalized
-        ? await services.jobs.thumbUrl(profile.uid, job.id, 1).then((r) => r.url)
-        : '';
-      res.json({ candidates: enriched, pageUrl });
-    }),
-  );
-
-  router.post(
-    '/jobs/:id/select-template',
-    asyncHandler(async (req, res) => {
-      const profile = requireProfile(req);
-      const body = parseBody(selectTemplateSchema, req.body);
-      const job = await services.jobs.selectTemplate(profile.uid, req.params.id!, body.templateId);
-      res.json({ job });
-    }),
-  );
-
-  router.post(
-    '/jobs/:id/request-template',
-    asyncHandler(async (req, res) => {
-      const profile = requireProfile(req);
-      parseBody(requestTemplateSchema, req.body);
-      const job = await services.jobs.requestTemplate(profile.uid, req.params.id!);
-      res.json({ job });
-    }),
-  );
-
-  router.post(
-    '/jobs/:id/mode',
-    asyncHandler(async (req, res) => {
-      const profile = requireProfile(req);
-      parseBody(modeSchema, req.body);
-      const job = await services.jobs.useCopySheet(profile.uid, req.params.id!);
-      res.json({ job });
     }),
   );
 

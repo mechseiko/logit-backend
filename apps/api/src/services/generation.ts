@@ -1,7 +1,5 @@
 import {
   LIMITS,
-  approximateCharsPerLine,
-  maxLinesFor,
   redact,
   weekdayName,
   type DayEntry,
@@ -15,10 +13,9 @@ import type { Store } from '../db/index.js';
 import type { AiProvider, WeekInput } from './ai/index.js';
 import { generateValidatedWeek } from './ai/index.js';
 import { CreditsService, regenLedgerId, chatLedgerId } from './credits.js';
-import { placeRect } from './fill.js';
 import { getPricing } from './pricing.js';
 import { activityPatch } from './retention.js';
-import type { TemplatesService } from './templates.js';
+import type { ProfilesService } from './profiles.js';
 
 function rateDocId(uid: string): string {
   return `${uid}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
@@ -31,7 +28,7 @@ export class GenerationService {
     private readonly store: Store,
     private readonly ai: AiProvider,
     private readonly config: AppConfig,
-    private readonly templates: TemplatesService,
+    private readonly profiles: ProfilesService,
   ) {
     this.credits = new CreditsService(store);
   }
@@ -42,28 +39,16 @@ export class GenerationService {
     return job;
   }
 
-  private async characterBudget(job: Job): Promise<number> {
-    if (job.mode === 'template' && job.templateId) {
-      const template = await this.templates.get(job.templateId);
-      const field =
-        template?.unit.fields.find((f) => f.type === 'daily_activity' && f.dayIndex === 0) ??
-        template?.unit.fields.find((f) => f.type === 'daily_activity');
-      if (field && job.normalized) {
-        const rotation = 0;
-        const placement = placeRect(
-          field.rect,
-          job.normalized.pageWidthPt,
-          job.normalized.pageHeightPt,
-          rotation,
-        );
-        const chars = approximateCharsPerLine(field.fontSize.min, placement.width);
-        const lines = maxLinesFor(placement.height, field.fontSize.min, 1.15);
-        return Math.min(1200, Math.max(60, chars * lines));
-      }
-    }
-    const lines = job.intake?.linesPerDay ?? 5;
-    const chars = job.intake?.charsPerLine ?? 70;
-    return Math.min(1500, Math.max(80, lines * chars));
+  /**
+   * How many characters a day entry gets. The document has its own column width, so the budget is
+   * derived from the detail level rather than from a scanned page: enough for a real day, short
+   * enough that a week still reads like a logbook.
+   */
+  private characterBudget(job: Job): number {
+    const detail = job.intake?.detail ?? 'standard';
+    if (detail === 'short') return 300;
+    if (detail === 'detailed') return 900;
+    return 520;
   }
 
   private async buildWeekInput(
@@ -166,7 +151,7 @@ export class GenerationService {
     let week = existing;
     let removed: string[] = [];
     if (!week) {
-      const budget = await this.characterBudget(job);
+      const budget = this.characterBudget(job);
       try {
         week = await this.generateWeekRecord(job, group, budget);
       } catch (error) {
@@ -230,7 +215,7 @@ export class GenerationService {
       const existing = await this.store.query<WeekRecord>(`jobs/${jobId}/weeks`, {});
       const doneNumbers = new Set(existing.filter((week) => week.status === 'done').map((week) => week.weekNumber));
       const missing = job.plan.groups.filter((group) => !doneNumbers.has(group.weekNumber));
-      const budget = await this.characterBudget(job);
+      const budget = this.characterBudget(job);
       const pricing = await getPricing(this.store);
       const dailyCalls = await this.store.get<Record<string, number>>(`rate/${rateDocId(job.uid)}`);
       if ((dailyCalls?.aiCalls ?? 0) + missing.length > (pricing.limits.aiDailyCallsPerUser ?? LIMITS.aiDailyCallsPerUser)) {
@@ -327,7 +312,7 @@ export class GenerationService {
 
     const group = job.plan.groups.find((entry) => entry.weekNumber === weekNumber);
     if (!group) throw notFound('That week is not in your plan.');
-    const budget = await this.characterBudget(job);
+    const budget = this.characterBudget(job);
     let regenerated: WeekRecord;
     try {
       regenerated = await this.generateWeekRecord(job, group, budget);

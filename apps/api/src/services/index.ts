@@ -10,18 +10,18 @@ import { GenerationService } from './generation.js';
 import { IngestService } from './ingest.js';
 import { JobsService } from './jobs.js';
 import { createPaymentsProvider, PaymentsService } from './payments/index.js';
+import { ProfilesService } from './profiles.js';
 import { QueueService } from './queue.js';
 import { ReferralsService } from './referrals.js';
 import { ReportsService } from './reports.js';
 import type { StorageAdapter } from './storage/index.js';
-import { TemplatesService } from './templates.js';
 import { ensureSchoolSeed } from './schools.js';
 import { UsersService } from './users.js';
 
 export interface Services {
   ai: AiProvider;
   users: UsersService;
-  templates: TemplatesService;
+  profiles: ProfilesService;
   jobs: JobsService;
   ingest: IngestService;
   generation: GenerationService;
@@ -48,18 +48,16 @@ export async function buildServices(deps: ServiceDeps): Promise<Services> {
 
   const ai = createAiProvider(config);
   const users = new UsersService(store, storage, config);
-  const templates = new TemplatesService(store, storage, config);
-  const jobs = new JobsService(store, storage, config, templates);
-  const ingest = new IngestService({ store, storage, config, templates });
-  const generation = new GenerationService(store, ai, config, templates);
+  const profiles = new ProfilesService(store);
+  const jobs = new JobsService(store, storage, config, profiles);
+  const ingest = new IngestService({ store, storage, config });
+  const generation = new GenerationService(store, ai, config, profiles);
   const credits = new CreditsService(store);
   const referrals = new ReferralsService(store, config);
   const reports = new ReportsService(store, ai);
   const provider = createPaymentsProvider(store, config);
   const payments = new PaymentsService(store, provider, config, referrals);
-  const exportService = new ExportService(store, storage, config, (text, maxChars) =>
-    generation.shorten(text, maxChars),
-  );
+  const exportService = new ExportService(store, storage, config);
   const admin = new AdminService(store, generation, payments, storage, config);
   const queue = new QueueService(store, ingest, generation, config, logger);
   const cleanup = new CleanupService(store, storage, config, logger);
@@ -67,7 +65,7 @@ export async function buildServices(deps: ServiceDeps): Promise<Services> {
   return {
     ai,
     users,
-    templates,
+    profiles,
     jobs,
     ingest,
     generation,

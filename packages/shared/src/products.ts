@@ -23,6 +23,8 @@ export interface ProductCapabilities {
   fillsOwnPages: boolean;
   /** Produces a printable sheet the student copies by hand when no layout matches. */
   copySheet: boolean;
+  /** Builds the finished logbook document itself: cover, weeks, monthly summaries, signature page. */
+  documentPdf: boolean;
   /** Generates numbered chapters (1–5) rather than a handful of sections. */
   chapters: boolean;
   /** Formats student-supplied references. Never invents them. */
@@ -54,11 +56,12 @@ export interface Product {
 }
 
 const LOGBOOK_CAPS: ProductCapabilities = {
-  fillsOwnPages: true,
-  copySheet: true,
+  fillsOwnPages: false,
+  copySheet: false,
+  documentPdf: true,
   chapters: false,
   references: false,
-  coverPage: false,
+  coverPage: true,
   toc: false,
   docx: false,
   pdfExport: true,
@@ -67,6 +70,7 @@ const LOGBOOK_CAPS: ProductCapabilities = {
 const DRAFT_CAPS: ProductCapabilities = {
   fillsOwnPages: false,
   copySheet: false,
+  documentPdf: false,
   chapters: false,
   references: false,
   coverPage: false,
@@ -78,6 +82,7 @@ const DRAFT_CAPS: ProductCapabilities = {
 const NOTHING: ProductCapabilities = {
   fillsOwnPages: false,
   copySheet: false,
+  documentPdf: false,
   chapters: false,
   references: false,
   coverPage: false,
@@ -93,8 +98,8 @@ export const PRODUCTS: Product[] = [
     shortLabel: 'SIWES',
     oneLiner: "Weekly entries in your school's pages",
     claim:
-      'Weekly entries written from your notes. Fills your school’s pages where we have the layout, otherwise a copy sheet sized to your page.',
-    status: 'conditional',
+      'A finished, printable logbook built from your notes: cover page, every week written out, monthly summaries and a page for signatures and stamps.',
+    status: 'available',
     capabilities: LOGBOOK_CAPS,
     programme: 'SIWES',
     priceKey: 'logbook',
@@ -106,8 +111,8 @@ export const PRODUCTS: Product[] = [
     shortLabel: 'SWEP',
     oneLiner: 'The same pages, SWEP wording',
     claim:
-      'The same weekly entries in SWEP wording. Fills your school’s pages where we have the layout, otherwise a copy sheet.',
-    status: 'conditional',
+      'The same finished document in SWEP wording: cover page, every week, monthly summaries and a signature page.',
+    status: 'available',
     capabilities: LOGBOOK_CAPS,
     programme: 'SWEP',
     priceKey: 'logbook',
@@ -119,8 +124,8 @@ export const PRODUCTS: Product[] = [
     shortLabel: 'IT',
     oneLiner: 'Industrial training, week by week',
     claim:
-      'Weekly entries for industrial training. Fills your school’s pages where we have the layout, otherwise a copy sheet.',
-    status: 'conditional',
+      'Industrial training written week by week into a finished, printable logbook with a signature page.',
+    status: 'available',
     capabilities: LOGBOOK_CAPS,
     programme: 'IT',
     priceKey: 'logbook',

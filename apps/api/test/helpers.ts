@@ -8,7 +8,7 @@ import { config as baseConfig, type AppConfig } from '../src/config.js';
 import { MemoryStore } from '../src/db/index.js';
 import { createLogger } from '../src/logger.js';
 import { buildServices, type Services } from '../src/services/index.js';
-import { seedGenericTemplate } from './genericTemplate.js';
+import { seedGenericProfile } from './genericProfile.js';
 import { LocalStorageAdapter } from '../src/services/storage/local.js';
 import type { Job } from '@logit/shared';
 
@@ -53,7 +53,7 @@ export async function createTestContext(overrides: Partial<AppConfig> = {}): Pro
   });
   const logger = createLogger(config);
   const services = await buildServices({ config, store, storage, logger });
-  await seedGenericTemplate(store);
+  await seedGenericProfile(store);
   const app = createApp({ config, store, storage, logger, services });
 
   return {

@@ -49,35 +49,27 @@ describe('end-to-end happy path (all mocks)', () => {
     expect(credits.body.reserved).toBe(0);
   });
 
-  it('uploads a PDF, ingests it and finds layout candidates', async () => {
+  it('uploads a PDF and ingests it straight to the questions', async () => {
     const pdf = await makeLogbookPdf({ pages: 4 });
     jobId = await uploadJob(ctx, session.auth, 'pdf', [
       { name: 'my-logbook.pdf', type: 'application/pdf', bytes: pdf },
     ]);
     await processQueue(ctx);
-    const job = await waitForJob(ctx, jobId, (entry) => entry.status === 'needs_layout_choice');
+    const job = await waitForJob(ctx, jobId, (entry) => entry.status === 'needs_intake');
     expect(job.normalized?.pages).toBe(4);
-    expect(job.analysis?.candidates.length).toBeGreaterThan(0);
+    expect(job.analysis?.looksLikeLogbook).toBe(true);
     expect(job.analysis?.hasEmbeddedText).toBe(true);
+    expect(job.profileId).toBeTruthy();
 
     const thumb = await request(ctx.app).get(`/api/jobs/${jobId}/thumb/1`).set(session.auth);
     expect(thumb.status).toBe(200);
     expect(thumb.body.url).toContain('/api/files');
 
-    const candidates = await request(ctx.app).get(`/api/jobs/${jobId}/candidates`).set(session.auth);
-    expect(candidates.body.candidates[0].templateId).toBeTruthy();
+    const detail = await request(ctx.app).get(`/api/jobs/${jobId}`).set(session.auth);
+    expect(detail.body.profile.daysPerWeek).toBeGreaterThan(0);
   });
 
   it('requires credits before generation, then generates and exports', async () => {
-    const candidates = await request(ctx.app).get(`/api/jobs/${jobId}/candidates`).set(session.auth);
-    const templateId = candidates.body.candidates[0].templateId as string;
-
-    const selected = await request(ctx.app)
-      .post(`/api/jobs/${jobId}/select-template`)
-      .set(session.auth)
-      .send({ templateId });
-    expect(selected.status).toBe(200);
-
     const intake = await request(ctx.app)
       .put(`/api/jobs/${jobId}/intake`)
       .set(session.auth)
@@ -125,7 +117,7 @@ describe('end-to-end happy path (all mocks)', () => {
     const exported = await request(ctx.app).post(`/api/jobs/${jobId}/export`).set(session.auth);
     expect(exported.status).toBe(200);
     expect(exported.body.url).toContain('/api/files');
-    expect(exported.body.kind).toBe('filled');
+    expect(exported.body.kind).toBe('document');
 
     const download = await request(ctx.app).get(`/api/jobs/${jobId}/download`).set(session.auth);
     expect(download.status).toBe(200);
