@@ -192,51 +192,58 @@ function cover(pdf: PDFDocument, font: PDFFont, context: LogbookDocContext): PDF
   return page;
 }
 
+/**
+ * One week, drawn day by day. A long week is never clipped and never squeezed off the page: when the
+ * next day cannot fit, the week continues on a fresh page with the same columns.
+ */
 function weekPage(
   pdf: PDFDocument,
   font: PDFFont,
   context: LogbookDocContext,
   week: WeekRecord,
-): PDFPage {
-  const page = pdf.addPage([A4.width, A4.height]);
+): PDFPage[] {
+  const pages: PDFPage[] = [];
+  let page = pdf.addPage([A4.width, A4.height]);
   const { width, height } = page.getSize();
-
-  label(page, font, 'Week ' + week.weekNumber, MARGIN, height - 72, 8);
-  page.drawText(`${formatDate(week.startDate)}  -  ${formatDate(week.endDate)}`, {
-    x: MARGIN,
-    y: height - 96,
-    size: 15,
-    font,
-    color: INK,
-  });
-  page.drawText(clean(context.profile.labels.weekly), {
-    x: width - MARGIN - font.widthOfTextAtSize(context.profile.labels.weekly, 8),
-    y: height - 72,
-    size: 8,
-    font,
-    color: MUTED,
-  });
-  page.drawLine({
-    start: { x: MARGIN, y: height - 112 },
-    end: { x: width - MARGIN, y: height - 112 },
-    thickness: 0.8,
-    color: RULE,
-  });
-
   const dateX = MARGIN;
   const dayX = MARGIN + 62;
   const entryX = MARGIN + 118;
   const entryWidth = width - MARGIN - entryX;
+  const bottomLimit = MARGIN + 40;
+  let continued = false;
 
-  label(page, font, 'Date', dateX, height - 130, 7);
-  label(page, font, 'Day', dayX, height - 130, 7);
-  label(page, font, 'Activities', entryX, height - 130, 7);
+  const header = (target: PDFPage) => {
+    label(target, font, 'Week ' + week.weekNumber + (continued ? ' (continued)' : ''), MARGIN, height - 72, 8);
+    target.drawText(`${formatDate(week.startDate)}  -  ${formatDate(week.endDate)}`, {
+      x: MARGIN,
+      y: height - 96,
+      size: 15,
+      font,
+      color: INK,
+    });
+    target.drawText(clean(context.profile.labels.weekly), {
+      x: width - MARGIN - font.widthOfTextAtSize(clean(context.profile.labels.weekly), 8),
+      y: height - 72,
+      size: 8,
+      font,
+      color: MUTED,
+    });
+    target.drawLine({
+      start: { x: MARGIN, y: height - 112 },
+      end: { x: width - MARGIN, y: height - 112 },
+      thickness: 0.8,
+      color: RULE,
+    });
+    label(target, font, 'Date', dateX, height - 130, 7);
+    label(target, font, 'Day', dayX, height - 130, 7);
+    label(target, font, 'Activities', entryX, height - 130, 7);
+  };
 
+  header(page);
+  pages.push(page);
   let y = height - 146;
-  for (const day of week.days) {
-    page.drawText(formatDate(day.date), { x: dateX, y: y - 10, size: 9, font, color: INK });
-    page.drawText(weekdayName(day.date), { x: dayX, y: y - 10, size: 9, font, color: MUTED });
 
+  for (const day of week.days) {
     let size = 9.5;
     let lines = wrap(day.entry, font, size, entryWidth);
     if (lines.length > 8) {
@@ -244,6 +251,17 @@ function weekPage(
       lines = wrap(day.entry, font, size, entryWidth);
     }
     const rowHeight = Math.max(46, lines.length * (size + 3.5) + 14);
+
+    if (y - rowHeight < bottomLimit) {
+      continued = true;
+      page = pdf.addPage([A4.width, A4.height]);
+      pages.push(page);
+      header(page);
+      y = height - 146;
+    }
+
+    page.drawText(formatDate(day.date), { x: dateX, y: y - 10, size: 9, font, color: INK });
+    page.drawText(weekdayName(day.date), { x: dayX, y: y - 10, size: 9, font, color: MUTED });
     lines.forEach((line, index) => {
       page.drawText(line, {
         x: entryX,
@@ -263,6 +281,15 @@ function weekPage(
   }
 
   if (week.weeklySummary) {
+    const summaryLines = wrap(week.weeklySummary, font, 9, width - MARGIN * 2);
+    const needed = 18 + 14 + summaryLines.length * 13;
+    if (y - needed < bottomLimit) {
+      continued = true;
+      page = pdf.addPage([A4.width, A4.height]);
+      pages.push(page);
+      header(page);
+      y = height - 146;
+    }
     y -= 18;
     label(page, font, context.profile.labels.summary, MARGIN, y, 7);
     y -= 14;
@@ -276,7 +303,7 @@ function weekPage(
     });
   }
 
-  return page;
+  return pages;
 }
 
 function monthlyPage(
@@ -396,7 +423,7 @@ export async function buildLogbookDocument(
   let blockIndex = 0;
 
   for (const week of weeks) {
-    pages.push(weekPage(pdf, font, context, week));
+    pages.push(...weekPage(pdf, font, context, week));
     if (monthlyEvery > 0) {
       block.push(week);
       if (block.length === monthlyEvery) {
