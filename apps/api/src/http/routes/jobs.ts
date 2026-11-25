@@ -7,6 +7,7 @@ import {
   submitSchema,
   weekUpdateSchema,
   LIMITS,
+  type ReportGenerateInput,
 } from '@logit/shared';
 import type { AppConfig } from '../../config.js';
 import { requireProfile } from '../context.js';
@@ -267,7 +268,7 @@ export function createJobsRouter(services: Services, config: AppConfig): Router 
     asyncHandler(async (req, res) => {
       const profile = requireProfile(req);
       const body = parseBody(reportGenerateSchema, req.body);
-      const result = await services.reports.generate(profile.uid, { ...body, tools: body.tools ?? '' });
+      const result = await services.reports.generate(profile.uid, body as ReportGenerateInput);
       res.json(result);
     }),
   );

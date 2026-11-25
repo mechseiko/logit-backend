@@ -54,7 +54,7 @@ export async function buildServices(deps: ServiceDeps): Promise<Services> {
   const generation = new GenerationService(store, ai, config, profiles);
   const credits = new CreditsService(store);
   const referrals = new ReferralsService(store, config);
-  const reports = new ReportsService(store, ai);
+  const reports = new ReportsService(store, ai, storage);
   const provider = createPaymentsProvider(store, config);
   const payments = new PaymentsService(store, provider, config, referrals);
   const exportService = new ExportService(store, storage, config);

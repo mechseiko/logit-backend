@@ -36,6 +36,15 @@ export interface ReportTemplate {
 
 const CHAPTERS: ReportTemplateSection[] = [
   {
+    key: 'abstract',
+    chapter: '',
+    heading: 'Abstract',
+    words: 220,
+    generated: true,
+    guidance:
+      'One paragraph: what the attachment was, where it was done, what the student worked on and what they concluded. Written from the chapters, no citations.',
+  },
+  {
     key: 'introduction',
     chapter: '1',
     heading: 'Introduction',

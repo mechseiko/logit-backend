@@ -202,9 +202,19 @@ export const reportGenerateSchema = z.object({
   course: z.string().trim().max(160).optional(),
   institution: z.string().trim().max(160).optional(),
   durationWeeks: z.number().int().min(1).max(104).optional(),
+  company: z.string().trim().max(160).default(''),
   objectives: z.string().trim().min(10).max(4000),
   activities: z.string().trim().min(10).max(8000),
   tools: z.string().trim().max(2000).default(''),
+  problems: z.string().trim().max(4000).default(''),
+  solutions: z.string().trim().max(4000).default(''),
   outcomes: z.string().trim().min(10).max(4000),
+  /** One source per line: the only material a literature review may use. */
+  sources: z.string().trim().max(4000).default(''),
+  /** Written into the PDF server-side, never sent to the model. */
+  studentName: z.string().trim().max(120).default(''),
+  matricNo: z.string().trim().max(60).default(''),
+  department: z.string().trim().max(120).default(''),
+  fontFamily: z.enum(['sans', 'serif', 'mono']).default('sans'),
 });
 export type ReportGenerateInput = z.infer<typeof reportGenerateSchema>;

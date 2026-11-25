@@ -69,35 +69,43 @@ export class MockAiProvider implements AiProvider {
 
   async generateReport(input: ReportFacts): Promise<ReportOutput> {
     const duration = input.durationWeeks ? ` over ${input.durationWeeks} weeks` : '';
-    return {
-      title: input.title,
-      sections: [
-        {
-          heading: 'Introduction',
-          body: `This report documents the project "${input.title}"${input.course ? ` for ${input.course}` : ''}${duration}. The work described here reflects only the activities the student carried out and recorded.`,
-        },
-        {
-          heading: 'Approach',
-          body: `The work was planned around the stated objectives: ${input.objectives}`,
-        },
-        {
-          heading: 'Activities Carried Out',
-          body: input.activities,
-        },
-        {
-          heading: 'Tools and Equipment',
-          body: input.tools || 'The tools and equipment used are listed in the student\u2019s own notes.',
-        },
-        {
-          heading: 'Outcomes',
-          body: input.outcomes,
-        },
-        {
-          heading: 'Conclusion',
-          body: 'The activities above were completed as described. The student should review this report, correct anything inaccurate, and add their own name, matric number and signature before submission.',
-        },
-      ],
-    };
+    const sections = [
+      {
+        heading: 'Abstract',
+        body: `This report describes the industrial attachment${input.company ? ` at ${input.company}` : ''}${duration}, the work carried out and what the student concluded.`,
+      },
+      {
+        heading: 'Introduction',
+        body: `This report documents the attachment${input.company ? ` at ${input.company}` : ''}${input.course ? ` for ${input.course}` : ''}${duration}. The work described here reflects only the activities the student carried out and recorded. ${input.objectives}`,
+      },
+    ];
+
+    // The literature chapter exists only when the student supplied sources.
+    if (input.sources?.trim()) {
+      sections.push({
+        heading: 'Literature Review',
+        body: `The review below follows the sources the student supplied: ${input.sources}`,
+      });
+    }
+
+    sections.push(
+      {
+        heading: 'Technical Experiences and Skills Acquired',
+        body: `${input.activities}${input.tools ? `\n\nTools used: ${input.tools}` : ''}`,
+      },
+      {
+        heading: 'Technical Problems Encountered and Solutions',
+        body: input.problems
+          ? `${input.problems}${input.solutions ? `\n\n${input.solutions}` : ''}`
+          : 'No significant technical problem was recorded during this attachment.',
+      },
+      {
+        heading: 'Conclusions and Recommendations',
+        body: `${input.outcomes} The student should review this report, correct anything inaccurate, and add their own name, matric number and signature before submission.`,
+      },
+    );
+
+    return { title: input.title, sections };
   }
 
   async shorten(input: { text: string; maxChars: number }): Promise<string> {

@@ -272,10 +272,15 @@ export interface ReportFacts {
   course?: string;
   institution?: string;
   durationWeeks?: number;
+  company?: string;
   objectives: string;
   activities: string;
   tools: string;
+  problems?: string;
+  solutions?: string;
   outcomes: string;
+  /** One source per line. The only material the literature chapter may use. */
+  sources?: string;
 }
 
 export interface ReportSection {
