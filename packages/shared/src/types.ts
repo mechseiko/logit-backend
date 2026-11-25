@@ -2,6 +2,9 @@ import type { DetailLevel, Programme } from './constants.js';
 
 export type ExportKind = 'document' | 'preview';
 
+/** The typeface a generated document is set in. */
+export type FontFamily = 'sans' | 'serif' | 'mono';
+
 export type JobStatus =
   | 'created'
   | 'queued'
@@ -170,6 +173,8 @@ export interface Job {
   input: { kind: 'pdf' | 'images'; files: StoredFile[] };
   normalized?: JobNormalized;
   analysis?: JobAnalysis;
+  /** Typeface the finished document is set in. */
+  fontFamily?: FontFamily;
   /** The school structure used to lay the document out (set at submit). */
   profileId: string;
   intake?: IntakeAnswers;

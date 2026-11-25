@@ -8,6 +8,7 @@ import {
   type IntakeAnswers,
   type Job,
   type JobStatus,
+  type FontFamily,
   type Plan,
   type Programme,
   type School,
@@ -317,6 +318,17 @@ export class JobsService {
     };
     await this.store.set(`jobs/${id}`, next);
     return { job: next, plan };
+  }
+
+  /** The typeface the document will be set in. Changeable until the first export. */
+  async setFont(uid: string, id: string, fontFamily: FontFamily): Promise<Job> {
+    const job = await this.loadOwned(uid, id);
+    if (job.status === 'generating' || job.status === 'queued' || job.status === 'processing') {
+      throw conflict('Wait for the current step to finish.');
+    }
+    const next: Job = { ...job, fontFamily, updatedAt: this.now() };
+    await this.store.set(`jobs/${id}`, next);
+    return next;
   }
 
   async weeks(uid: string, id: string): Promise<WeekRecord[]> {

@@ -70,6 +70,7 @@ export class ExportService {
         title: job.title,
         programme: job.programme,
         watermark: Boolean(options.preview),
+        fontFamily: job.fontFamily ?? 'sans',
       },
       fontBytes,
     );

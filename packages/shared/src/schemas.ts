@@ -60,6 +60,8 @@ export const submitSchema = z.object({
 
 export const taskInputSchema = z.object({ text: z.string().trim().min(3).max(300) });
 
+export const fontChoiceSchema = z.object({ fontFamily: z.enum(['sans', 'serif', 'mono']) });
+
 export const intakeSchema = z
   .object({
     company: z.string().trim().min(2).max(120),

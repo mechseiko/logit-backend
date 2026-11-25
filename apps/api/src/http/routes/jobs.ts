@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import { z } from 'zod';
 import {
   chatSchema,
+  fontChoiceSchema,
   reportGenerateSchema,
   submitSchema,
   weekUpdateSchema,
@@ -119,6 +120,16 @@ export function createJobsRouter(services: Services, config: AppConfig): Router 
       const page = Math.max(1, Number.parseInt(req.params.page!, 10) || 1);
       const result = await services.jobs.thumbUrl(profile.uid, req.params.id!, page);
       res.json(result);
+    }),
+  );
+
+  router.post(
+    '/jobs/:id/font',
+    asyncHandler(async (req, res) => {
+      const profile = requireProfile(req);
+      const body = parseBody(fontChoiceSchema, req.body);
+      const job = await services.jobs.setFont(profile.uid, req.params.id!, body.fontFamily);
+      res.json({ job });
     }),
   );
 

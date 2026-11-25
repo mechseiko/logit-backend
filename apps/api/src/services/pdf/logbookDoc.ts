@@ -1,8 +1,9 @@
 import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, degrees, type PDFFont, type PDFPage, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, degrees, type PDFFont, type PDFPage, rgb } from 'pdf-lib';
 import {
   formatDate,
   weekdayName,
+  type FontFamily,
   type IntakeAnswers,
   type LogbookProfile,
   type StudentDetails,
@@ -35,6 +36,8 @@ export interface LogbookDocContext {
   title: string;
   programme: string;
   watermark?: boolean;
+  /** Typeface for the whole document. Defaults to the embedded Noto Sans. */
+  fontFamily?: FontFamily;
 }
 
 /**
@@ -408,8 +411,17 @@ export async function buildLogbookDocument(
   fontBytes: Buffer,
 ): Promise<{ bytes: Buffer; pages: number }> {
   const pdf = await PDFDocument.create();
-  pdf.registerFontkit(fontkit);
-  const font = await pdf.embedFont(fontBytes, { subset: true });
+  const family: FontFamily = context.fontFamily ?? 'sans';
+  // Times and Courier are standard PDF faces, so a traditional report needs no extra binary.
+  let font: PDFFont;
+  if (family === 'serif') {
+    font = await pdf.embedFont(StandardFonts.TimesRoman);
+  } else if (family === 'mono') {
+    font = await pdf.embedFont(StandardFonts.Courier);
+  } else {
+    pdf.registerFontkit(fontkit);
+    font = await pdf.embedFont(fontBytes, { subset: true });
+  }
 
   pdf.setTitle(`${context.title} - ${context.studentDetails?.fullName ?? 'Logbook'}`);
   pdf.setCreator('Logit');
