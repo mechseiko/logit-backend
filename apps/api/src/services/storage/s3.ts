@@ -83,13 +83,17 @@ export class S3StorageAdapter implements StorageAdapter {
   async usedBytes(prefix: string): Promise<number> {
     let total = 0;
     let token: string | undefined;
+    let pages = 0;
     do {
       const listed = await this.client.send(
         new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken: token }),
       );
       for (const object of listed.Contents ?? []) total += object.Size ?? 0;
       token = listed.IsTruncated ? listed.NextContinuationToken : undefined;
-    } while (token);
+      pages += 1;
+      // This is a soft budget number. Ten pages is a bounded, useful estimate; walking a huge bucket
+      // on every upload only adds latency and failure modes.
+    } while (token && pages < 10);
     return total;
   }
 

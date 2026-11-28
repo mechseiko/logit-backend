@@ -45,6 +45,9 @@ export class JobsService {
     private readonly profiles: ProfilesService,
   ) {}
 
+  /** Cached bucket total for the soft budget guard; see guardStorage. */
+  private storageTotal: { at: number; bytes: number } | null = null;
+
   private now(): string {
     return new Date().toISOString();
   }
@@ -78,14 +81,31 @@ export class JobsService {
     return jobs.length;
   }
 
+  /**
+   * A soft budget guard. Accounting the whole bucket is a listing that can be slow or fail on a
+   * provider hiccup, and it used to run on every upload — a failed listing turned into a bare 500 and
+   * blocked the student. It is now cached for a few minutes, and if the listing fails the upload is
+   * allowed: the real limits are the per-user caps, and the provider itself rejects a full bucket.
+   */
   private async guardStorage(): Promise<void> {
-    const used = await this.storage.usedBytes('');
+    const now = Date.now();
+    if (!this.storageTotal || now - this.storageTotal.at > 5 * 60_000) {
+      try {
+        this.storageTotal = { at: now, bytes: await this.storage.usedBytes('') };
+      } catch {
+        this.storageTotal = { at: now, bytes: 0 };
+        return;
+      }
+    }
+    const used = this.storageTotal.bytes;
     const ratio = used / this.config.storageBudgetBytes;
     if (ratio >= 0.9) {
       throw rateLimited('Storage is full right now. Please try again later.');
     }
     if (ratio >= 0.7) {
-      await this.store.merge('config/flags', { storageWarning: true, storageUsedBytes: used });
+      await this.store
+        .merge('config/flags', { storageWarning: true, storageUsedBytes: used })
+        .catch(() => undefined);
     }
   }
 
