@@ -5,10 +5,11 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 # Copy only manifests first so dependency layers cache well.
+# This repo holds the API and the shared package only; there is no apps/web workspace here, so a
+# COPY of its manifest would fail the whole image build.
 COPY package.json package-lock.json ./
 COPY packages/shared/package.json packages/shared/package.json
 COPY apps/api/package.json apps/api/package.json
-COPY apps/web/package.json apps/web/package.json
 RUN npm ci --ignore-scripts --no-audit --no-fund
 
 COPY tsconfig.base.json ./
